@@ -1,0 +1,137 @@
+[
+  {
+    "id": "rcti",
+    "name": "RCTI",
+    "type": "iframe",
+    "streamUrl": "https://sindikasi.inews.id/embed/video/YWdlbnQ9ZGVza3RvcCZ1cmw9aHR0cHMlM0ElMkYlMkZlbWJlZC5yY3RpcGx1cy5jb20lMkZsaXZlJTJGcmN0aSUyRmluZXdzaWQmaGVpZ2h0PTEwMCUyNSZ3aWR0aD0xMDAlMjU=",
+    "category": "Entertainment & General",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Logo_RCTI_2015.svg/320px-Logo_RCTI_2015.svg.png"
+  },
+  {
+    "id": "mnctv",
+    "name": "MNCTV",
+    "type": "iframe",
+    "streamUrl": "https://sindikasi.inews.id/embed/video/YWdlbnQ9ZGVza3RvcCZ1cmw9aHR0cHMlM0ElMkYlMkZlbWJlZC5yY3RpcGx1cy5jb20lMkZsaXZlJTJGbW5jdHYlMkZpbmV3c2lkJmhlaWdodD0xMDAlMjUmd2lkdGg9MTAwJTI1",
+    "category": "Entertainment & General",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/MNCTV_2015_logo.svg/320px-MNCTV_2015_logo.svg.png"
+  },
+  {
+    "id": "gtv",
+    "name": "GTV",
+    "type": "iframe",
+    "streamUrl": "https://sindikasi.inews.id/embed/video/YWdlbnQ9ZGVza3RvcCZ1cmw9aHR0cHMlM0ElMkYlMkZlbWJlZC5yY3RpcGx1cy5jb20lMkZsaXZlJTJGZ3R2JTJGaW5ld3NpZCZoZWlnaHQ9MTAwJTI1JndpZHRoPTEwMCUyNQ==",
+    "category": "Entertainment & Animation",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Logo_GTV_2017.svg/320px-Logo_GTV_2017.svg.png"
+  },
+  {
+    "id": "inews",
+    "name": "iNews",
+    "type": "iframe",
+    "streamUrl": "https://sindikasi.inews.id/embed/video/YWdlbnQ9ZGVza3RvcCZ1cmw9aHR0cHMlM0ElMkYlMkZlbWJlZC5yY3RpcGx1cy5jb20lMkZsaXZlJTJGaW5ld3MlMkZpbmV3c2lkJmhlaWdodD0xMDAlMjUmd2lkdGg9MTAwJTI1",
+    "category": "News & Talkshow",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Logo_iNews_2023.svg/320px-Logo_iNews_2023.svg.png"
+  },
+  {
+    "id": "transtv",
+    "name": "Trans TV",
+    "type": "hls",
+    "streamUrl": "https://video.detik.com/transtv/smil:transtv.smil/index.m3u8",
+    "category": "Entertainment & Variety",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Trans_TV_2013_logo.svg/320px-Trans_TV_2013_logo.svg.png"
+  },
+  {
+    "id": "trans7",
+    "name": "Trans7",
+    "type": "hls",
+    "streamUrl": "https://video.detik.com/trans7/smil:trans7.smil/index.m3u8",
+    "category": "Entertainment & Infotainment",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/Trans7_2013_logo.svg/320px-Trans7_2013_logo.svg.png"
+  },
+  {
+    "id": "nettv",
+    "name": "NET TV",
+    "type": "hls",
+    "streamUrl": "https://wahyu1ptv.pages.dev/MDTV-HD.m3u8",
+    "category": "Entertainment & Music",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/NET_logo.svg/320px-NET_logo.svg.png"
+  },
+  {
+    "id": "metrotv",
+    "name": "Metro TV",
+    "type": "hls",
+    "streamUrl": "https://edge.medcom.id/live-edge/smil:metro.smil/playlist.m3u8",
+    "category": "News & Talkshow",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Metro_TV_2020_logo.svg/320px-Metro_TV_2020_logo.svg.png"
+  },
+  {
+    "id": "tvone",
+    "name": "TV One",
+    "type": "hls",
+    "streamUrl": "http://202.80.222.20/cdn/iptv/Tvod/001/channel2000018/1024.m3u8",
+    "category": "News & Sports",
+    "resolution": "576i",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Logo_tvOne_2012.svg/320px-Logo_tvOne_2012.svg.png"
+  },
+  {
+    "id": "antv",
+    "name": "ANTV",
+    "type": "hls",
+    "streamUrl": "http://103.58.160.157:8278/720-ANTV/playlist.m3u8",
+    "category": "Entertainment & Drama",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/ANTV_2020_logo.svg/320px-ANTV_2020_logo.svg.png"
+  },
+  {
+    "id": "sctv",
+    "name": "SCTV",
+    "type": "iframe",
+    "streamUrl": "https://www.vidio.com/live/204-sctv-tv-stream/embed?autoplay=true&player_only=true&live_chat=false&mute=false&",
+    "category": "Entertainment & Drama",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Logo_SCTV_2005.svg/320px-Logo_SCTV_2005.svg.png"
+  },
+  {
+    "id": "indosiar",
+    "name": "Indosiar",
+    "type": "iframe",
+    "streamUrl": "https://www.vidio.com/live/205-indosiar-tv-stream/embed?autoplay=true&player_only=true&live_chat=false&mute=false&",
+    "category": "Entertainment & Sports",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Indosiar_2012_logo.svg/320px-Indosiar_2012_logo.svg.png"
+  },
+  {
+    "id": "kompastv",
+    "name": "Kompas TV",
+    "type": "iframe",
+    "streamUrl": "https://www.dailymotion.com/embed/video/k46igSmSMGBIiWsXtWk?autoplay=1",
+    "category": "News & Talkshow",
+    "resolution": "720p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Logo_Kompas_TV_2017.svg/320px-Logo_Kompas_TV_2017.svg.png"
+  },
+  {
+    "id": "rtv",
+    "name": "RTV",
+    "type": "hls",
+    "streamUrl": "https://rtvstream.rtv.co.id:4555/hls/rtv.m3u8",
+    "category": "Kids & Family",
+    "resolution": "576p",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Logo_RTV_2014.svg/320px-Logo_RTV_2014.svg.png"
+  },
+  {
+    "id": "tvri",
+    "name": "TVRI",
+    "type": "hls",
+    "streamUrl": "https://ott-balancer.tvri.go.id/live/eds/Nasional/hls/Nasional.m3u8",
+    "category": "Public & Educational",
+    "resolution": "1080i",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Logo_TVRI_2019.svg/320px-Logo_TVRI_2019.svg.png"
+  }
+]

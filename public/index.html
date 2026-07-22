@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCS PLAY - Premium TV Indonesia Live Streaming</title>
+    <!-- Meta SEO -->
+    <meta name="description" content="Nonton live streaming televisi Indonesia terlengkap dengan kualitas HD gratis. Nikmati siaran RCTI, SCTV, Trans TV, TVRI, dan lainnya.">
+    <meta name="keywords" content="streaming tv, tv indonesia, live streaming, rcti, sctv, trans tv, tvri, m3u8, iptv indonesia">
+    <meta name="author" content="NCS PLAY">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📺</text></svg>">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="app-logo">
+                    <i class="fa-solid fa-circle-play logo-icon"></i>
+                    <span class="logo-text">NCS<span class="accent-text">PLAY</span></span>
+                </div>
+                <div class="header-divider"></div>
+                <div class="active-channel-header" id="header-active-channel" style="display: none;">
+                    <img src="" alt="" class="header-channel-logo" id="header-channel-logo">
+                    <span class="header-channel-name" id="header-channel-name">Memuat...</span>
+                    <span class="live-indicator">
+                        <span class="live-dot"></span>LIVE
+                    </span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="clock-container">
+                    <i class="fa-regular fa-clock clock-icon"></i>
+                    <span id="digital-clock">00:00:00 WIB</span>
+                </div>
+                <button class="btn-fullscreen" id="btn-fullscreen" title="Layar Penuh">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="app-main">
+            <!-- VIDEO AREA -->
+            <section class="player-section">
+                <div class="player-wrapper" id="video-player-container">
+                    <!-- Loading Overlay -->
+                    <div class="player-overlay" id="loading-overlay">
+                        <div class="spinner"></div>
+                        <p class="overlay-text">Menghubungkan ke Siaran...</p>
+                    </div>
+
+                    <!-- Error Overlay (404) -->
+                    <div class="player-overlay hidden" id="error-overlay">
+                        <i class="fa-solid fa-circle-exclamation error-icon"></i>
+                        <h3 class="error-title">Siaran Tidak Ditemukan</h3>
+                        <p class="error-desc" id="error-message">Silakan pilih saluran televisi lain dari daftar di sebelah kanan.</p>
+                        <button class="btn-retry" id="btn-error-home">Kembali ke Beranda</button>
+                    </div>
+
+                    <!-- IFRAME PLAYER -->
+                    <iframe id="iframe-player" class="player-element hidden" allow="autoplay; fullscreen" allowfullscreen></iframe>
+
+                    <!-- HLS VIDEO PLAYER -->
+                    <video id="hls-player" class="player-element hidden" controls playsinline></video>
+                </div>
+
+                <!-- CHANNEL DETAILS -->
+                <div class="channel-details-container" id="channel-details-box">
+                    <div class="channel-details-main">
+                        <img src="" alt="" class="channel-details-logo" id="detail-channel-logo">
+                        <div class="channel-details-text">
+                            <div class="channel-details-title-row">
+                                <h1 class="channel-name-title" id="detail-channel-name">Memuat Saluran...</h1>
+                                <span class="badge badge-live"><span class="live-dot"></span>LIVE</span>
+                            </div>
+                            <div class="channel-meta-row">
+                                <span class="meta-item" id="detail-channel-category"><i class="fa-solid fa-tags"></i> Kategori</span>
+                                <span class="meta-item" id="detail-channel-resolution"><i class="fa-solid fa-tv"></i> Resolusi</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="channel-details-share">
+                        <button class="btn-share" id="btn-share-link" title="Salin Link">
+                            <i class="fa-solid fa-share-nodes"></i> Bagikan
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SIDEBAR -->
+            <aside class="sidebar-section">
+                <!-- Tabs for Channel list vs Chat -->
+                <div class="sidebar-tabs">
+                    <button class="tab-btn active" id="tab-channels-btn">
+                        <i class="fa-solid fa-tv"></i> Saluran
+                    </button>
+                    <button class="tab-btn" id="tab-chat-btn">
+                        <i class="fa-solid fa-comments"></i> Live Chat
+                    </button>
+                </div>
+
+                <!-- CHANNEL LIST CONTENT -->
+                <div id="sidebar-channels-tab-content" class="tab-content">
+                    <div class="sidebar-header">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="search-channel-input" placeholder="Cari channel TV...">
+                        </div>
+                    </div>
+                    
+                    <!-- Channel Grid/List -->
+                    <div class="channel-list-container">
+                        <div class="channel-list" id="sidebar-channel-list">
+                            <!-- Dynamic items -->
+                            <div class="sidebar-skeleton">
+                                <div class="skeleton-item"></div>
+                                <div class="skeleton-item"></div>
+                                <div class="skeleton-item"></div>
+                                <div class="skeleton-item"></div>
+                                <div class="skeleton-item"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LIVE CHAT CONTENT -->
+                <div id="sidebar-chat-tab-content" class="tab-content hidden">
+                    <div class="chat-panel-container">
+                        <!-- Setup Screen (Enter Nickname) -->
+                        <div class="chat-setup-screen" id="chat-setup-screen">
+                            <i class="fa-solid fa-user-tag chat-setup-icon"></i>
+                            <h3>Gabung Live Chat</h3>
+                            <p>Masukkan nama panggilan Anda untuk bergabung dalam obrolan nobar.</p>
+                            <form id="chat-setup-form">
+                                <input type="text" id="chat-nickname-input" placeholder="Nama Panggilan..." maxlength="20" required>
+                                <button type="submit" class="btn-chat-join">Mulai Mengobrol</button>
+                            </form>
+                        </div>
+
+                        <!-- Chat Screen -->
+                        <div class="chat-main-screen hidden" id="chat-main-screen">
+                            <div class="chat-messages" id="chat-messages-container">
+                                <!-- Dynamic Messages -->
+                            </div>
+                            <div class="chat-input-area">
+                                <div class="chat-input-row">
+                                    <span class="chat-user-avatar" id="chat-user-avatar">?</span>
+                                    <input type="text" id="chat-message-input" placeholder="Kirim pesan..." maxlength="200">
+                                    <button class="btn-chat-send" id="btn-chat-send" title="Kirim">
+                                        <i class="fa-solid fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                                <div class="chat-footer-row">
+                                    <span class="chat-nickname-display" id="chat-nickname-display">User</span>
+                                    <button class="btn-change-nickname" id="btn-change-nickname" title="Ganti Nama">
+                                        <i class="fa-solid fa-user-pen"></i> Ganti Nama
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast-notification" class="toast hidden">Tautan berhasil disalin!</div>
+
+    <!-- HLS JS Library for HLS streaming support in browsers -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js"></script>
+    <!-- Custom JS -->
+    <script src="/js/app.js"></script>
+</body>
+</html>

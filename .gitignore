@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Local Session Data (CRITICAL: Private WhatsApp Keys)
+session/
+
+# IDE config & Brain Artifacts
+.gemini/
+Cymo_Update.json
+testing.js
+
+# Logs
+*.log
+*.log.*
+
+# OS files
+.DS_Store
+Thumbs.db

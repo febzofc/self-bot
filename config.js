@@ -5,13 +5,16 @@
    * Follow https://github.com/DikaArdnt
 */
 
-const fs = require('fs')
-
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
 // Other
 global.owner = ['6285849261085']
+global.pairing = '085822578327'
 global.author = 'WhatsApp Bot'
 global.prefa = ['#','!','.','❗']
+global.streamingUrl = 'http://localhost:3000'
 global.mess = {
     success: '✓ Success',
     admin: 'Fitur Khusus Admin Group!',
@@ -25,10 +28,10 @@ global.mess = {
 
 global.thumb = fs.readFileSync('./lib/bob.jpg')
 
-let file = require.resolve(__filename)
+const __filename = fileURLToPath(import.meta.url);
+let file = __filename;
 fs.watchFile(file, () => {
 	fs.unwatchFile(file)
 	console.log(`update ${__filename}`)
-	delete require.cache[file]
-	require(file)
+	// Di ESM, Anda tidak bisa menggunakan "delete require.cache" secara langsung.
 })

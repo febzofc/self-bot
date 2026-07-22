@@ -16,14 +16,15 @@ module.exports = {
         var { data } = await fetchJson('https://tikwm.com/api/?url=' + text)
         let txt = 'Tiktok Downloader\n\n'
         txt += 'Video Title: ' + data.title + '\n'
-        //txt += 'Video Author: ' + data.author.name + '\n'
-        //txt += 'Like: ' + data.stats.likeCount + '\n'
-        //txt += 'Comment: ' + data.stats.commentCount + '\n'
-        //txt += 'Share: ' + data.stats.shareCount + '\n'
-        //txt += 'Play: ' + data.stats.playCount + '\n'
-        //txt += 'Save: ' + data.stats.saveCount + '\n'
-        //txt += 'Music Title: ' + data.music.title + '\n'
-        //txt += 'Music Author: ' + data.music.author + '\n\n'*/ 
+        txt += 'Video Author: ' + data.author.name + '\n'
+        txt += 'Like: ' + data.digg_count + '\n'
+        txt += 'Comment: ' + data.comment_count + '\n'
+        txt += 'Share: ' + data.share_ount + '\n'
+        txt += 'Play: ' + data.play_ount + '\n'
+        txt += 'Save: ' + data.collect_count + '\n'
+        txt += 'Music Title: ' + data.music_info.title + '\n'
+        txt += 'Music Author: ' + data.music_info.author + '\n'
+        txt += 'Music Dowmload Link: ' + data.music_info.play + '\n\n'
                     bob.sendMessage(m.chat, { video: { url: data.play }, caption: txt }, { quoted: m }).catch(err => m.reply('Terjadi kesalahan, silahkan coba lagi nanti'))
                  }
                  break

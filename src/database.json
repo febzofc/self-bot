@@ -1,0 +1,26 @@
+{
+  "users": {},
+  "phising": {
+    "61665b9b": {
+      "id": "61665b9b",
+      "uid": "6285849261085@s.whatsapp.net",
+      "type": "photo",
+      "mode": "front",
+      "url": "google.com"
+    },
+    "8d7e69ed": {
+      "id": "8d7e69ed",
+      "uid": "6285849261085@s.whatsapp.net",
+      "type": "photo",
+      "mode": "front",
+      "url": "https://muhammadiyah.or.id"
+    },
+    "67be9cd3": {
+      "id": "67be9cd3",
+      "uid": "6285849261085@s.whatsapp.net",
+      "type": "photo",
+      "mode": "front",
+      "url": "https://muhammadiyah.or.id"
+    }
+  }
+}

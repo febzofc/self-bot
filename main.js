@@ -10,12 +10,14 @@ const {
     generateForwardMessageContent, 
     generateWAMessageFromContent, 
     downloadContentFromMessage, 
-    makeInMemoryStore, 
     jidDecode, 
     proto, 
-    getMessage 
-} = require("@adiwajshing/baileys");        
+    getMessage,
+    fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore
+} = require("@whiskeysockets/baileys");        
 
+const axios = require('axios');
 const pino = require('pino');
 const path = require('path');
 const { Boom } = require('@hapi/boom');
@@ -23,76 +25,174 @@ const fs = require('fs');
 const syntaxerror = require('syntax-error');
 const FileType = require('file-type')
 const PhoneNumber = require('awesome-phonenumber');
+const readline = require('readline');
+const NodeCache = require('node-cache');
+const yargs = require('yargs/yargs');
+const { v4: uuidv4 } = require('uuid');
+const _ = require('lodash');
 
 const { smsg, getBuffer, fetchJson, sleep } = require('./lib/fungsi.js');
-const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif');
-const { color } = require('./lib/color');
+const { imageToWebp, videoToWebp, writeExifImg, writeExifVid } = require('./lib/exif.js');
+const { Low, JSONFile } = require('./lib/lowdb')
 
-let pluginFolder = path.join(__dirname, 'perintah');
-let pluginFilter = filename => /\.js$/.test(filename);
-global.plugins = {};
+//datasase
+global.opts = new Object(yargs(process.argv.slice(2)).exitProcess(false).parse())
+global.db = new Low(new JSONFile(`src/database.json`))
 
-for (let filename of fs.readdirSync(pluginFolder).filter(pluginFilter)) {
-    try {
-        global.plugins[filename] = require(path.join(pluginFolder, filename));
-    } catch (e) {
-        console.log(e);
-        delete global.plugins[filename];
-    }
+global.DATABASE = global.db
+global.loadDatabase = async function loadDatabase() {
+  if (global.db.READ) return new Promise((resolve) => setInterval(function () { (!global.db.READ ? (clearInterval(this), resolve(global.db.data == null ? global.loadDatabase() : global.db.data)) : null) }, 1 * 1000))
+  if (global.db.data !== null) return
+  global.db.READ = true
+  await global.db.read()
+  global.db.READ = false
+  global.db.data = {
+    users: {},
+    phising: {},
+    ...(global.db.data || {})
+  }
+  global.db.chain = _.chain(global.db.data)
 }
+loadDatabase()
+
+if (global.db) setInterval(async () => {
+   if (global.db.data) await global.db.write()
+}, 30 * 1000)
+
+// --- START STREAMING SERVER (Express.js) ---
+try {
+    require('./server.js');
+} catch (err) {
+    console.error('Gagal menjalankan Streaming TV Server:', err);
+}
+
+
+const pluginManager = require('./lib/pluginManager.js');
+
+pluginManager.loadAllPlugins();
 
 global.reload = (_event, filename) => {
-    if (pluginFilter(filename)) {
-        let dir = path.join(pluginFolder, filename);
-        if (dir in require.cache) {
-            delete require.cache[dir];
-            if (fs.existsSync(dir)) console.log(color(`Done Update plugins '${filename}'`, 'aqua'));
-            else {
-                console.log(color(`deleted plugin '${filename}'`, 'yellow'));
-                return delete global.plugins[filename];
-            }
-        } else console.log(color(`requiring new plugin '${filename}'`, 'lime'));
-        let err = syntaxerror(fs.readFileSync(dir), fs.existsSync(dir) ? filename : 'Execution Function');
-        if (err) console.log(color(`syntax error while loading '${filename}'\n${err}`, 'red'));
-        else try {
-            global.plugins[filename] = require(dir);
-        } catch (e) {
-            console.log(e);
-        } finally {
-            global.plugins = Object.fromEntries(Object.entries(global.plugins).sort(([a], [b]) => a.localeCompare(b)));
-        }
+    if (filename) {
+        pluginManager.reloadPlugin(filename);
     }
-}
+};
 Object.freeze(global.reload);
-fs.watch(pluginFolder, global.reload);
+fs.watch(pluginManager.pluginFolder, global.reload);
 
-const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) });
+const makeInMemoryStore = () => {
+  let messages = {};
+  let contacts = {};
+
+  const loadMessage = async (jir, id) => {
+    return messages[jir]
+      ? (messages[jir].array || []).find((a) => a.key.id == id)
+      : null;
+  };
+  const bind = (ev) => {
+    ev.on('messages.upsert', ({ messages: Messages }) => {
+      const cht = {
+        ...Messages[0],
+        id: Messages[0].key.remoteJid,
+      };
+      let isMessage = cht?.message;
+      let isStubType = cht?.messageStubType;
+      if (!(isMessage || isStubType)) return;
+      if (isStubType == '2') return;
+      messages[cht.id] ||= {
+        array: [],
+      };
+      messages[cht.id].array.push(cht);
+    });
+  };
+  return {
+    messages,
+    contacts,
+    bind,
+    loadMessage,
+  };
+};
+
+const store = makeInMemoryStore();
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
 const startBot = async () => {
+
     const { state, saveCreds } = await useMultiFileAuthState('session');
+    const { version, isLatest } = await fetchLatestBaileysVersion();
     
-    console.clear();
-    console.log(color('Menghubungkan ke WhatsApp...', 'cyan'));
-// update disinis edikit tadi
+    // console.clear();
+    console.log('Menghubungkan ke WhatsApp...');
+    console.log(`Memakai WA v${version.join('.')}, isLatest: ${isLatest}`);
+
+    let printQRInTerminal = true;
+    let usePairingCode = false;
+
+    if (!state.creds.registered) {
+        console.log(`\n============================================`);
+        console.log(`Pilih Metode Autentikasi:`);
+        console.log(`1. QR Code (Pindai di terminal)`);
+        console.log(`2. Pairing Code (Tulis nomor telepon)`);
+        console.log(`============================================`);
+        
+        const choice = await question('Masukkan pilihan (1 atau 2): ');
+
+        if (choice === '1') {
+            printQRInTerminal = true;
+            usePairingCode = false;
+        } else if (choice === '2') {
+            printQRInTerminal = false;
+            usePairingCode = true;
+        } else {
+            console.log('Pilihan tidak valid. Menggunakan QR Code secara default.');
+        }
+    }
+
+    const msgRetryCounterCache = new NodeCache();
     const bob = makeWASocket({
-        printQRInTerminal: true,
-        logger: pino({ level: 'silent' }),
-        auth: state,
-        browser: ["Cimo", "Safari", "3.0"],
-        connectTimeoutMs: 60000,
-        syncFullHistory: false, // false aja biar ringan
+        version,
+        logger: pino({ level: "silent" }),
+        printQRInTerminal,
+        auth: {
+            creds: state.creds,
+            keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
+        },
+        msgRetryCounterCache,
+        browser: ["Ubuntu", "Chrome", "20.0.0"],
         generateHighQualityLinkPreview: true,
         getMessage: async key => {
             if (store) {
                 const msg = await store.loadMessage(key.remoteJid, key.id);
                 return msg?.message || undefined;
             }
-            return { conversation: "Hello" };
+            return proto.Message.create({ conversation: 'test' });
         }
     });
+    
+    if (!bob.authState.creds.registered && usePairingCode) {
+        const phoneNumber = await question('Masukkan nomor telepon Anda (dengan kode negara, cth: 62812xxxxxx):\n');
+        const formattedNumber = phoneNumber.replace(/[^0-9]/g, '');
+
+        console.log('Meminta kode pairing...');
+        setTimeout(async () => {
+            const code = await bob.requestPairingCode(formattedNumber);
+            console.log(`\n============================================`);
+            console.log(`|    KODE PAIRING ANDA: ${code}    |`);
+            console.log(`============================================\n`);
+        }, 3000); // Penundaan sejenak agar request ke WhatsApp lebih stabil
+    }
 
     store.bind(bob.ev);
     bob.public = true; // Status bot publik
+
+    // --- START SERVER PHISING (Express.js) ---
+    /*if (!global.phisingServer) {
+        require('./testing.js')(bob);
+        global.phisingServer = true;
+    }*/
+
+
 
     // --- FITUR ANTI CALL ---
     bob.ev.on('call', async (calls) => {
@@ -182,27 +282,15 @@ const startBot = async () => {
                     // Berikan jeda sedikit agar proses sebelumnya benar-benar mati
                     setTimeout(() => startBot(), 3000); 
                 }
+                else {
+                    console.log('Connection closed. You are logged out.');
+                    rl.close();
+                }
             } else if (connection === 'open') {
-                console.log(color('Bot berhasil terhubung!', 'lime'));
+                console.log('\n✅ Bot berhasil terhubung ke WhatsApp!\n');
             }
         });
-    
-        // Add Other
-          
-          /** Resize Image
-          *
-          * @param {Buffer} Buffer (Only Image)
-          * @param {Numeric} Width
-          * @param {Numeric} Height
-          */
-        
-          bob.reSize = async (image, width, height) => {
-           let jimp = require('jimp')
-           var oyy = await jimp.read(image);
-           var kiyomasa = await oyy.resize(width, height).getBufferAsync(jimp.MIME_JPEG)
-           return kiyomasa
-          }
-          // Siapa yang cita-citanya pakai resize buat keliatan thumbnailnya
+
           
     
           /**
@@ -382,5 +470,4 @@ const startBot = async () => {
 
     return bob;
 };
-
-startBot();
+startBot()

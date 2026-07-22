@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Monitoring Plugin - Owner Console</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Styles -->
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        body {
+            overflow: auto;
+            background-color: #0b0c10;
+        }
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .dashboard-header {
+            height: 70px;
+            background: rgba(15, 17, 23, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 30px;
+        }
+        .dashboard-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .dashboard-title {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .badge-owner {
+            background: linear-gradient(135deg, #e50914, #ff5252);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+        .nav-link-tv {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            transition: var(--transition-fast);
+        }
+        .nav-link-tv:hover {
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .dashboard-main {
+            flex: 1;
+            padding: 24px 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .dashboard-stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+        .dashboard-stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .stat-icon-box {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .icon-blue { background: rgba(52, 152, 219, 0.15); color: #3498db; }
+        .icon-green { background: rgba(46, 204, 113, 0.15); color: #2ecc71; }
+        .icon-red { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
+
+        .dashboard-workspace {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            height: calc(100vh - 210px);
+            min-height: 500px;
+        }
+        .plugin-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .panel-title {
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .filter-buttons {
+            display: flex;
+            gap: 6px;
+        }
+        .btn-filter {
+            flex: 1;
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition-fast);
+        }
+        .btn-filter.active {
+            background: var(--color-accent);
+            border-color: var(--color-accent);
+            color: #fff;
+        }
+        .editor-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 20px;
+        }
+
+        /* Responsive Dashboard CSS */
+        @media (max-width: 1024px) {
+            .dashboard-workspace {
+                grid-template-columns: 1fr;
+                height: auto;
+                min-height: auto;
+            }
+            .plugin-panel {
+                height: 400px;
+            }
+            .editor-panel {
+                height: 550px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-header {
+                flex-direction: column;
+                height: auto;
+                padding: 15px;
+                gap: 12px;
+                align-items: center;
+                text-align: center;
+            }
+            .dashboard-header div {
+                justify-content: center;
+                width: 100%;
+            }
+            .dashboard-main {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- HEADER -->
+        <header class="dashboard-header">
+            <div class="dashboard-brand">
+                <i class="fa-solid fa-microchip logo-icon"></i>
+                <span class="dashboard-title">Plugin Monitoring Console</span>
+                <span class="badge-owner">Owner Only</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <a href="/" class="nav-link-tv">
+                    <i class="fa-solid fa-tv"></i> Ke Web TV Streaming
+                </a>
+                <div class="clock-container" style="background: rgba(255,255,255,0.05); padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+                    <i class="fa-regular fa-clock clock-icon"></i>
+                    <span id="digital-clock">00:00:00 WIB</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <main class="dashboard-main">
+            <!-- STATS ROW -->
+            <div class="dashboard-stats-row">
+                <div class="dashboard-stat-card">
+                    <div>
+                        <div class="stat-value" id="stat-total-plugins">0</div>
+                        <div class="stat-label">Total Plugin Tersedia</div>
+                    </div>
+                    <div class="stat-icon-box icon-blue">
+                        <i class="fa-solid fa-cubes"></i>
+                    </div>
+                </div>
+                <div class="dashboard-stat-card">
+                    <div>
+                        <div class="stat-value" style="color: #2ecc71;" id="stat-active-plugins">0</div>
+                        <div class="stat-label">Plugin Berjalan Aktif</div>
+                    </div>
+                    <div class="stat-icon-box icon-green">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+                <div class="dashboard-stat-card">
+                    <div>
+                        <div class="stat-value" style="color: #e74c3c;" id="stat-error-plugins">0</div>
+                        <div class="stat-label">Plugin Error Terdeteksi</div>
+                    </div>
+                    <div class="stat-icon-box icon-red">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WORKSPACE PANEL -->
+            <div class="dashboard-workspace">
+                <!-- SIDEBAR PLUGIN LIST -->
+                <div class="plugin-panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <span>Daftar Plugin</span>
+                            <button id="btn-refresh-stats" class="btn-filter" style="flex:none; padding: 4px 8px;" title="Refresh Data">
+                                <i class="fa-solid fa-arrows-rotate"></i>
+                            </button>
+                        </div>
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="search-plugin-input" placeholder="Cari nama plugin...">
+                        </div>
+                        <div class="filter-buttons">
+                            <button class="btn-filter active" data-filter="all">Semua</button>
+                            <button class="btn-filter" data-filter="error">Error Sahaja</button>
+                            <button class="btn-filter" data-filter="active">Aktif</button>
+                        </div>
+                    </div>
+                    <div class="plugin-list" id="dashboard-plugin-list" style="padding: 12px;">
+                        <!-- Dynamic items -->
+                    </div>
+                </div>
+
+                <!-- EDITOR & LOGS PANEL -->
+                <div class="editor-panel">
+                    <div class="editor-header">
+                        <span id="selected-plugin-name" class="selected-filename">Pilih plugin di sebelah kiri</span>
+                        <button class="btn-save-code" id="btn-save-plugin-code" disabled>
+                            <i class="fa-solid fa-floppy-disk"></i> Simpan Kode & Reload Plugin
+                        </button>
+                    </div>
+                    
+                    <div id="plugin-error-banner" class="error-banner hidden">
+                        <i class="fa-solid fa-bug"></i>
+                        <div class="error-banner-info">
+                            <strong id="banner-error-type">ERROR LOG DETEKSI</strong>
+                            <p id="banner-error-msg">Detail rincian log kesalahan plugin...</p>
+                        </div>
+                    </div>
+
+                    <div class="code-editor-container">
+                        <textarea id="plugin-code-editor" placeholder="// Pilih file plugin untuk melihat/mengedit kode JS..." spellcheck="false"></textarea>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="toast hidden">Notifikasi</div>
+
+    <!-- Dashboard Script -->
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>
