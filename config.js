@@ -5,9 +5,9 @@
    * Follow https://github.com/DikaArdnt
 */
 
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
+const fs = require('fs');
+const { fileURLToPath } = require('url');
+const path = require('path');
 
 // Other
 global.owner = ['6285849261085']
