@@ -6,8 +6,6 @@
 */
 
 const fs = require('fs');
-const { fileURLToPath } = require('url');
-const path = require('path');
 
 // Other
 global.owner = ['6285849261085']
@@ -28,10 +26,3 @@ global.mess = {
 
 global.thumb = fs.readFileSync('./lib/bob.jpg')
 
-const __filename = fileURLToPath(import.meta.url);
-let file = __filename;
-fs.watchFile(file, () => {
-	fs.unwatchFile(file)
-	console.log(`update ${__filename}`)
-	// Di ESM, Anda tidak bisa menggunakan "delete require.cache" secara langsung.
-})
