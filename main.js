@@ -159,7 +159,7 @@ const startBot = async () => {
             keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
         },
         msgRetryCounterCache,
-        browser: ["Ubuntu", "Chrome", "20.0.0"],
+        syncFullHistory: true,
         generateHighQualityLinkPreview: true,
         getMessage: async key => {
             if (store) {
@@ -169,18 +169,19 @@ const startBot = async () => {
             return proto.Message.create({ conversation: 'test' });
         }
     });
+
+    // Simpan socket ke global variable agar bisa diakses oleh Express
+    global.waSock = bob;
     
     if (!bob.authState.creds.registered && usePairingCode) {
         const phoneNumber = await question('Masukkan nomor telepon Anda (dengan kode negara, cth: 62812xxxxxx):\n');
         const formattedNumber = phoneNumber.replace(/[^0-9]/g, '');
 
         console.log('Meminta kode pairing...');
-        setTimeout(async () => {
-            const code = await bob.requestPairingCode(formattedNumber);
-            console.log(`\n============================================`);
-            console.log(`|    KODE PAIRING ANDA: ${code}    |`);
-            console.log(`============================================\n`);
-        }, 3000); // Penundaan sejenak agar request ke WhatsApp lebih stabil
+        const code = await bob.requestPairingCode(formattedNumber);
+        console.log(`\n============================================`);
+        console.log(`|    KODE PAIRING ANDA: ${code}    |`);
+        console.log(`============================================\n`);
     }
 
     store.bind(bob.ev);
@@ -274,8 +275,12 @@ const startBot = async () => {
         bob.ev.on('creds.update', saveCreds)
         
         bob.ev.on('connection.update', (update) => {
-            const { connection, lastDisconnect } = update;
+            const { connection, lastDisconnect, qr } = update;
+            if (qr) {
+                console.log(`[QR CODE GENERATED] Harap pindai QR di terminal: ${qr}`);
+            }
             if (connection === 'close') {
+                global.waSock = null;
                 const shouldRestart = new Boom(lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
                 console.log('Koneksi terputus, mencoba restart:', shouldRestart);
                 if (shouldRestart) {
