@@ -3,19 +3,7 @@
  * Library: @adiwajshing/baileys (Legacy)
  */
 
-const { 
-    default: makeWASocket, 
-    useMultiFileAuthState, 
-    DisconnectReason, 
-    generateForwardMessageContent, 
-    generateWAMessageFromContent, 
-    downloadContentFromMessage, 
-    jidDecode, 
-    proto, 
-    getMessage,
-    fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore
-} = require("@whiskeysockets/baileys");        
+
 
 const axios = require('axios');
 const pino = require('pino');
@@ -118,6 +106,19 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
 const startBot = async () => {
+    const { 
+        default: makeWASocket, 
+        useMultiFileAuthState, 
+        DisconnectReason, 
+        generateForwardMessageContent, 
+        generateWAMessageFromContent, 
+        downloadContentFromMessage, 
+        jidDecode, 
+        proto, 
+        getMessage,
+        fetchLatestBaileysVersion,
+        makeCacheableSignalKeyStore
+    } = await import("@whiskeysockets/baileys");
 
     const { state, saveCreds } = await useMultiFileAuthState('session');
     const { version, isLatest } = await fetchLatestBaileysVersion();
