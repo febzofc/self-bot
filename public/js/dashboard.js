@@ -89,14 +89,21 @@ module.exports = {
 
     // --- AUTHENTICATION HELPERS ---
     function getOwnerToken() {
-        return sessionStorage.getItem('owner_token') || '';
+        let token = sessionStorage.getItem('owner_token');
+        if (!token) {
+            const match = document.cookie.match(/(?:^|;\s*)owner_token=([^;]+)/);
+            if (match) token = decodeURIComponent(match[1]);
+        }
+        return token || '';
     }
 
     function setOwnerToken(token) {
         if (token) {
             sessionStorage.setItem('owner_token', token);
+            document.cookie = `owner_token=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Lax`;
         } else {
             sessionStorage.removeItem('owner_token');
+            document.cookie = 'owner_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
         }
     }
 
@@ -105,10 +112,17 @@ module.exports = {
         const headers = {
             'Content-Type': 'application/json',
             ...(options.headers || {}),
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'X-Owner-Token': token
         };
 
-        const res = await fetch(url, { ...options, headers });
+        let targetUrl = url;
+        if (token) {
+            const separator = targetUrl.includes('?') ? '&' : '?';
+            targetUrl = `${targetUrl}${separator}token=${encodeURIComponent(token)}`;
+        }
+
+        const res = await fetch(targetUrl, { ...options, headers });
         if (res.status === 401) {
             setOwnerToken('');
             showLoginModal();

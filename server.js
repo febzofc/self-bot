@@ -27,22 +27,78 @@ function getChannels() {
 
 const pluginManager = require('./lib/pluginManager.js');
 
-// --- OWNER AUTHENTICATION SYSTEM ---
-const activeOwnerSessions = new Set();
+const crypto = require('crypto');
 
+// --- OWNER AUTHENTICATION SYSTEM (Stateless & Reverse-Proxy Safe) ---
 function normalizePhone(num) {
     if (!num) return '';
-    let digits = num.replace(/[^0-9]/g, '');
+    let digits = String(num).replace(/[^0-9]/g, '');
     if (digits.startsWith('0')) {
         digits = '62' + digits.substring(1);
     }
     return digits;
 }
 
+function generateOwnerToken(phone) {
+    const normPhone = normalizePhone(phone);
+    const timestamp = Date.now();
+    const secret = global.ownerPassword || 'owner123';
+    const signature = crypto.createHmac('sha256', secret).update(`${normPhone}:${timestamp}`).digest('hex');
+    return `${normPhone}.${timestamp}.${signature}`;
+}
+
+function verifyOwnerToken(token) {
+    if (!token || typeof token !== 'string') return false;
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+
+    const [phone, timestampStr, signature] = parts;
+    const timestamp = parseInt(timestampStr, 10);
+    if (isNaN(timestamp)) return false;
+
+    // Check token expiration (30 days)
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    if (Date.now() - timestamp > thirtyDaysMs) return false;
+
+    // Verify phone is in global.owner
+    const ownerList = (global.owner || []).map(normalizePhone);
+    if (!ownerList.includes(phone)) return false;
+
+    // Verify signature
+    const secret = global.ownerPassword || 'owner123';
+    const expectedSig = crypto.createHmac('sha256', secret).update(`${phone}:${timestamp}`).digest('hex');
+
+    try {
+        return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig));
+    } catch (e) {
+        return false;
+    }
+}
+
+function parseCookieToken(cookieHeader) {
+    if (!cookieHeader) return '';
+    const match = cookieHeader.match(/(?:^|;\s*)owner_token=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+}
+
+// CORS & Preflight Middleware
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-owner-token');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
+
 function requireOwnerAuth(req, res, next) {
+    if (req.method === 'OPTIONS') return next();
+
     const authHeader = req.headers.authorization || '';
     const tokenHeader = req.headers['x-owner-token'] || '';
-    const queryToken = req.query.token || '';
+    const queryToken = req.query.token || req.query.owner_token || '';
+    const cookieToken = parseCookieToken(req.headers.cookie);
 
     let token = '';
     if (authHeader.startsWith('Bearer ')) {
@@ -51,9 +107,11 @@ function requireOwnerAuth(req, res, next) {
         token = tokenHeader.trim();
     } else if (queryToken) {
         token = queryToken.trim();
+    } else if (cookieToken) {
+        token = cookieToken.trim();
     }
 
-    if (token && activeOwnerSessions.has(token)) {
+    if (token && verifyOwnerToken(token)) {
         req.ownerToken = token;
         return next();
     }
@@ -78,8 +136,8 @@ app.post('/api/owner/login', (req, res) => {
     const isPasswordValid = password === (global.ownerPassword || 'owner123');
 
     if (isPhoneValid && isPasswordValid) {
-        const token = 'owner_sess_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
-        activeOwnerSessions.add(token);
+        const token = generateOwnerToken(inputPhoneNormalized);
+        res.cookie('owner_token', token, { maxAge: 30 * 24 * 3600 * 1000, httpOnly: false, sameSite: 'lax', path: '/' });
         return res.json({ 
             success: true, 
             message: 'Login berhasil!', 
@@ -92,18 +150,21 @@ app.post('/api/owner/login', (req, res) => {
 });
 
 app.post('/api/owner/logout', (req, res) => {
-    const authHeader = req.headers.authorization || '';
-    let token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : (req.body.token || '');
-    if (token) {
-        activeOwnerSessions.delete(token);
-    }
+    res.clearCookie('owner_token', { path: '/' });
     res.json({ success: true, message: 'Logout berhasil.' });
 });
 
 app.get('/api/owner/verify', (req, res) => {
     const authHeader = req.headers.authorization || '';
-    let token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : (req.query.token || '');
-    const authenticated = Boolean(token && activeOwnerSessions.has(token));
+    const tokenHeader = req.headers['x-owner-token'] || '';
+    const queryToken = req.query.token || req.query.owner_token || '';
+    const cookieToken = parseCookieToken(req.headers.cookie);
+
+    let token = authHeader.startsWith('Bearer ') 
+        ? authHeader.substring(7).trim() 
+        : (tokenHeader || queryToken || cookieToken);
+
+    const authenticated = verifyOwnerToken(token);
     res.json({ success: true, authenticated });
 });
 
