@@ -2,11 +2,15 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 
+// Ensure config is loaded
+require('./config.js');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware to serve static files
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
 // Helper to load channels database dynamically
 function getChannels() {
@@ -23,7 +27,88 @@ function getChannels() {
 
 const pluginManager = require('./lib/pluginManager.js');
 
-app.use(express.json());
+// --- OWNER AUTHENTICATION SYSTEM ---
+const activeOwnerSessions = new Set();
+
+function normalizePhone(num) {
+    if (!num) return '';
+    let digits = num.replace(/[^0-9]/g, '');
+    if (digits.startsWith('0')) {
+        digits = '62' + digits.substring(1);
+    }
+    return digits;
+}
+
+function requireOwnerAuth(req, res, next) {
+    const authHeader = req.headers.authorization || '';
+    const tokenHeader = req.headers['x-owner-token'] || '';
+    const queryToken = req.query.token || '';
+
+    let token = '';
+    if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7).trim();
+    } else if (tokenHeader) {
+        token = tokenHeader.trim();
+    } else if (queryToken) {
+        token = queryToken.trim();
+    }
+
+    if (token && activeOwnerSessions.has(token)) {
+        req.ownerToken = token;
+        return next();
+    }
+
+    return res.status(401).json({ 
+        success: false, 
+        error: 'Akses ditolak. Silakan login sebagai Owner terlebih dahulu.' 
+    });
+}
+
+// Owner Authentication Endpoints
+app.post('/api/owner/login', (req, res) => {
+    const { phone, password } = req.body;
+    if (!phone || !password) {
+        return res.status(400).json({ success: false, error: 'Nomor telepon dan password wajib diisi.' });
+    }
+
+    const inputPhoneNormalized = normalizePhone(phone);
+    const ownerList = (global.owner || []).map(normalizePhone);
+
+    const isPhoneValid = ownerList.includes(inputPhoneNormalized);
+    const isPasswordValid = password === (global.ownerPassword || 'owner123');
+
+    if (isPhoneValid && isPasswordValid) {
+        const token = 'owner_sess_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+        activeOwnerSessions.add(token);
+        return res.json({ 
+            success: true, 
+            message: 'Login berhasil!', 
+            token, 
+            ownerPhone: inputPhoneNormalized 
+        });
+    }
+
+    return res.status(401).json({ success: false, error: 'Nomor owner atau password salah!' });
+});
+
+app.post('/api/owner/logout', (req, res) => {
+    const authHeader = req.headers.authorization || '';
+    let token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : (req.body.token || '');
+    if (token) {
+        activeOwnerSessions.delete(token);
+    }
+    res.json({ success: true, message: 'Logout berhasil.' });
+});
+
+app.get('/api/owner/verify', (req, res) => {
+    const authHeader = req.headers.authorization || '';
+    let token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : (req.query.token || '');
+    const authenticated = Boolean(token && activeOwnerSessions.has(token));
+    res.json({ success: true, authenticated });
+});
+
+// Protect all plugin management endpoints with requireOwnerAuth
+app.use('/api/plugins', requireOwnerAuth);
 
 // API endpoints for Plugin Monitoring & Management
 app.get('/api/plugins', (req, res) => {
@@ -39,7 +124,8 @@ app.get('/api/plugins/code/:filename', (req, res) => {
     try {
         const code = pluginManager.getPluginCode(filename);
         const errorInfo = global.pluginErrors[filename] || null;
-        res.json({ success: true, filename, code, errorInfo });
+        const isDisabled = Boolean(global.disabledPlugins && global.disabledPlugins[filename]);
+        res.json({ success: true, filename, code, errorInfo, isDisabled });
     } catch (e) {
         res.status(404).json({ success: false, error: e.message });
     }
@@ -49,11 +135,45 @@ app.post('/api/plugins/code/:filename', (req, res) => {
     const filename = req.params.filename;
     const { code } = req.body;
     if (typeof code !== 'string') {
-        return res.status(400).json({ success: false, error: 'Code content string required.' });
+        return res.status(400).json({ success: false, error: 'String konten kode diperlukan.' });
     }
     try {
         const result = pluginManager.savePluginCode(filename, code);
         res.json({ success: true, filename, result, stats: pluginManager.getStats() });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/plugins/create', (req, res) => {
+    const { filename, code } = req.body;
+    if (!filename || typeof filename !== 'string') {
+        return res.status(400).json({ success: false, error: 'Nama file plugin wajib diisi.' });
+    }
+    try {
+        const defaultCode = code || `const { fetchJson } = require('../lib/fungsi.js');\n\nmodule.exports = {\n    CmD: ['${filename.replace('.js', '')}'],\n    aliases: [],\n    categori: 'general',\n    exec: async (m, { bob, prefix, command, text }) => {\n        if (!text) return m.reply(\`Gunakan \${prefix + command} <teks>\`);\n        m.reply(\`Hasil: \${text}\`);\n    }\n};\n`;
+        const result = pluginManager.createPlugin(filename, defaultCode);
+        res.json({ success: true, result, stats: pluginManager.getStats() });
+    } catch (e) {
+        res.status(400).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/plugins/toggle', (req, res) => {
+    const { filename, action } = req.body;
+    if (!filename || !action) {
+        return res.status(400).json({ success: false, error: 'Filename dan action (enable/disable) diperlukan.' });
+    }
+    try {
+        let result;
+        if (action === 'disable') {
+            result = pluginManager.disablePlugin(filename);
+        } else if (action === 'enable') {
+            result = pluginManager.enablePlugin(filename);
+        } else {
+            return res.status(400).json({ success: false, error: 'Action harus "enable" atau "disable".' });
+        }
+        res.json({ success: true, result, stats: pluginManager.getStats() });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -71,7 +191,7 @@ app.get('/api/channels/:id', (req, res) => {
     if (channel) {
         res.json(channel);
     } else {
-        res.status(404).json({ error: 'Channel not found' });
+        res.status(404).json({ error: 'Channel tidak ditemukan' });
     }
 });
 

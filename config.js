@@ -9,6 +9,7 @@ const fs = require('fs');
 
 // Other
 global.owner = ['6285849261085']
+global.ownerPassword = 'owner123'
 global.pairing = '085822578327'
 global.author = 'WhatsApp Bot'
 global.prefa = ['#','!','.','❗']

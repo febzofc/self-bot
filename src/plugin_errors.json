@@ -1,22 +1,12 @@
 {
-  "pluginErrors": {
-    "dl_instagram.js": {
-      "filename": "dl_instagram.js",
-      "errorType": "RUNTIME_CODE_ERROR",
-      "errorMessage": "Cannot read properties of undefined (reading 'url')",
-      "stackTrace": "TypeError: Cannot read properties of undefined (reading 'url')\n    at Object.exec (D:\\KERJA\\boooot\\perintah\\dl_instagram.js:13:59)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async bob (D:\\KERJA\\boooot\\control.js:122:17)",
-      "lastErrorTime": "22/7/2026, 17.43.06",
-      "failuresCount": 1,
-      "commandTriggered": "ig",
-      "codeSnippet": "const { fetchJson } = require('../lib/fungsi.js')\n\nmodule.exports = {\n    CmD: ['instagram'],\n    aliases: ['ig', 'igdl', 'igmp4', 'igmp3'],\n    categori: 'downloader',\n    exec: async (m, { prefix, command, text, bob }) => {\n        if (!text) return m.reply(`Masukkan URL!\\nContoh: ${prefix + command} https://www.instagram.com/p/Cxxxxx/`);\n        const igRegex = /(?:https?:\\/\\/)?(?:www\\.)?instagram\\.com\\/(?:p|reel|tv)\\/([a-zA-Z0-9_-]+)/i;\n        const isIgUrl = igRegex.test(text);\n        if (!isIgUrl) return m.reply('URL Instagram tidak valid. Pastikan itu adalah link post, reel, atau IGTV.');\n        var meta = await fetchJson('https://api.siputzx.my.id/api/d/igram?url=' + text).catch(e => { m.reply('Telah terjadi kesalah silahkan coba lagi nanti') })\n        bob.sendMessage(m.chat, { video: { url: meta.data.url[0].url }, caption: meta.data.meta.title }, { quoted: m })\n        //console.log(meta.data.url[0].url)\n\n        // Tambahkan kode untuk fetch/scraping/download media Instagram di sini\n    }\n}"
-    }
-  },
+  "pluginErrors": {},
   "pluginFailures": {
     "convert_sticker.js": 0,
-    "dl_instagram.js": 1,
+    "dl_instagram.js": 0,
     "dl_tiktok.js": 0,
     "ncs.js": 0,
     "search_tracemoe.js": 0,
-    "test_syntax_error.js": 0
+    "test_syntax_error.js": 0,
+    "test_demo.js": 0
   }
 }

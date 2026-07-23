@@ -29,22 +29,22 @@ global.db = new Low(new JSONFile(`src/database.json`))
 
 global.DATABASE = global.db
 global.loadDatabase = async function loadDatabase() {
-  if (global.db.READ) return new Promise((resolve) => setInterval(function () { (!global.db.READ ? (clearInterval(this), resolve(global.db.data == null ? global.loadDatabase() : global.db.data)) : null) }, 1 * 1000))
-  if (global.db.data !== null) return
-  global.db.READ = true
-  await global.db.read()
-  global.db.READ = false
-  global.db.data = {
-    users: {},
-    phising: {},
-    ...(global.db.data || {})
-  }
-  global.db.chain = _.chain(global.db.data)
+    if (global.db.READ) return new Promise((resolve) => setInterval(function () { (!global.db.READ ? (clearInterval(this), resolve(global.db.data == null ? global.loadDatabase() : global.db.data)) : null) }, 1 * 1000))
+    if (global.db.data !== null) return
+    global.db.READ = true
+    await global.db.read()
+    global.db.READ = false
+    global.db.data = {
+        users: {},
+        phising: {},
+        ...(global.db.data || {})
+    }
+    global.db.chain = _.chain(global.db.data)
 }
 loadDatabase()
 
 if (global.db) setInterval(async () => {
-   if (global.db.data) await global.db.write()
+    if (global.db.data) await global.db.write()
 }, 30 * 1000)
 
 // --- START STREAMING SERVER (Express.js) ---
@@ -68,36 +68,36 @@ Object.freeze(global.reload);
 fs.watch(pluginManager.pluginFolder, global.reload);
 
 const makeInMemoryStore = () => {
-  let messages = {};
-  let contacts = {};
+    let messages = {};
+    let contacts = {};
 
-  const loadMessage = async (jir, id) => {
-    return messages[jir]
-      ? (messages[jir].array || []).find((a) => a.key.id == id)
-      : null;
-  };
-  const bind = (ev) => {
-    ev.on('messages.upsert', ({ messages: Messages }) => {
-      const cht = {
-        ...Messages[0],
-        id: Messages[0].key.remoteJid,
-      };
-      let isMessage = cht?.message;
-      let isStubType = cht?.messageStubType;
-      if (!(isMessage || isStubType)) return;
-      if (isStubType == '2') return;
-      messages[cht.id] ||= {
-        array: [],
-      };
-      messages[cht.id].array.push(cht);
-    });
-  };
-  return {
-    messages,
-    contacts,
-    bind,
-    loadMessage,
-  };
+    const loadMessage = async (jir, id) => {
+        return messages[jir]
+            ? (messages[jir].array || []).find((a) => a.key.id == id)
+            : null;
+    };
+    const bind = (ev) => {
+        ev.on('messages.upsert', ({ messages: Messages }) => {
+            const cht = {
+                ...Messages[0],
+                id: Messages[0].key.remoteJid,
+            };
+            let isMessage = cht?.message;
+            let isStubType = cht?.messageStubType;
+            if (!(isMessage || isStubType)) return;
+            if (isStubType == '2') return;
+            messages[cht.id] ||= {
+                array: [],
+            };
+            messages[cht.id].array.push(cht);
+        });
+    };
+    return {
+        messages,
+        contacts,
+        bind,
+        loadMessage,
+    };
 };
 
 const store = makeInMemoryStore();
@@ -106,15 +106,15 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
 const startBot = async () => {
-    const { 
-        default: makeWASocket, 
-        useMultiFileAuthState, 
-        DisconnectReason, 
-        generateForwardMessageContent, 
-        generateWAMessageFromContent, 
-        downloadContentFromMessage, 
-        jidDecode, 
-        proto, 
+    const {
+        default: makeWASocket,
+        useMultiFileAuthState,
+        DisconnectReason,
+        generateForwardMessageContent,
+        generateWAMessageFromContent,
+        downloadContentFromMessage,
+        jidDecode,
+        proto,
         getMessage,
         fetchLatestBaileysVersion,
         makeCacheableSignalKeyStore
@@ -122,7 +122,7 @@ const startBot = async () => {
 
     const { state, saveCreds } = await useMultiFileAuthState('session');
     const { version, isLatest } = await fetchLatestBaileysVersion();
-    
+
     // console.clear();
     console.log('Menghubungkan ke WhatsApp...');
     console.log(`Memakai WA v${version.join('.')}, isLatest: ${isLatest}`);
@@ -136,7 +136,7 @@ const startBot = async () => {
         console.log(`1. QR Code (Pindai di terminal)`);
         console.log(`2. Pairing Code (Tulis nomor telepon)`);
         console.log(`============================================`);
-        
+
         const choice = await question('Masukkan pilihan (1 atau 2): ');
 
         if (choice === '1') {
@@ -173,7 +173,7 @@ const startBot = async () => {
 
     // Simpan socket ke global variable agar bisa diakses oleh Express
     global.waSock = bob;
-    
+
     if (!bob.authState.creds.registered && usePairingCode) {
         const phoneNumber = await question('Masukkan nomor telepon Anda (dengan kode negara, cth: 62812xxxxxx):\n');
         const formattedNumber = phoneNumber.replace(/[^0-9]/g, '');
@@ -211,7 +211,7 @@ const startBot = async () => {
     });
 
     // --- MESSAGE HANDLER ---
-    bob.ev.on('messages.upsert', async chatUpdate => {        
+    bob.ev.on('messages.upsert', async chatUpdate => {
         try {
             let mek = chatUpdate.messages[0];
             if (!mek.message) return;
@@ -242,25 +242,25 @@ const startBot = async () => {
             if (store && store.contacts) store.contacts[id] = { id, name: contact.notify };
         }
     });
-    bob.getName = (jid, withoutContact  = false) => {
-            id = bob.decodeJid(jid)
-            withoutContact = bob.withoutContact || withoutContact 
-            let v
-            if (id.endsWith("@g.us")) return new Promise(async (resolve) => {
-                v = store.contacts[id] || {}
-                if (!(v.name || v.subject)) v = bob.groupMetadata(id) || {}
-                resolve(v.name || v.subject || PhoneNumber('+' + id.replace('@s.whatsapp.net', '')).getNumber('international'))
-            })
-            else v = id === '0@s.whatsapp.net' ? {
-                id,
-                name: 'WhatsApp'
-            } : id === bob.decodeJid(bob.user.id) ?
-                bob.user :
-                (store.contacts[id] || {})
-                return (withoutContact ? '' : v.name) || v.subject || v.verifiedName || PhoneNumber('+' + jid.replace('@s.whatsapp.net', '')).getNumber('international')
-        }
-        
-        bob.sendContact = async (jid, kon, quoted = '', opts = {}) => {
+    bob.getName = (jid, withoutContact = false) => {
+        id = bob.decodeJid(jid)
+        withoutContact = bob.withoutContact || withoutContact
+        let v
+        if (id.endsWith("@g.us")) return new Promise(async (resolve) => {
+            v = store.contacts[id] || {}
+            if (!(v.name || v.subject)) v = bob.groupMetadata(id) || {}
+            resolve(v.name || v.subject || PhoneNumber('+' + id.replace('@s.whatsapp.net', '')).getNumber('international'))
+        })
+        else v = id === '0@s.whatsapp.net' ? {
+            id,
+            name: 'WhatsApp'
+        } : id === bob.decodeJid(bob.user.id) ?
+            bob.user :
+            (store.contacts[id] || {})
+        return (withoutContact ? '' : v.name) || v.subject || v.verifiedName || PhoneNumber('+' + jid.replace('@s.whatsapp.net', '')).getNumber('international')
+    }
+
+    bob.sendContact = async (jid, kon, quoted = '', opts = {}) => {
         let list = []
         for (let i of kon) {
             list.push({
@@ -269,210 +269,210 @@ const startBot = async () => {
             })
         }
         bob.sendMessage(jid, { contacts: { displayName: `${list.length} Kontak`, contacts: list }, ...opts }, { quoted })
-        }
-        
-    
-        bob.serializeM = (m) => smsg(bob, m, store)
-        bob.ev.on('creds.update', saveCreds)
-        
-        bob.ev.on('connection.update', (update) => {
-            const { connection, lastDisconnect, qr } = update;
-            if (qr) {
-                console.log(`[QR CODE GENERATED] Harap pindai QR di terminal: ${qr}`);
-            }
-            if (connection === 'close') {
-                global.waSock = null;
-                const shouldRestart = new Boom(lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log('Koneksi terputus, mencoba restart:', shouldRestart);
-                if (shouldRestart) {
-                    // Berikan jeda sedikit agar proses sebelumnya benar-benar mati
-                    setTimeout(() => startBot(), 3000); 
-                }
-                else {
-                    console.log('Connection closed. You are logged out.');
-                    rl.close();
-                }
-            } else if (connection === 'open') {
-                console.log('\n✅ Bot berhasil terhubung ke WhatsApp!\n');
-            }
-        });
+    }
 
-          
-    
-          /**
-          *
-          * @param {*} jid
-          * @param {*} url
-          * @param {*} caption
-          * @param {*} quoted
-          * @param {*} options
-          */
-        bob.sendFileUrl = async (jid, url, caption, quoted, options = {}) => {
-          let mime = '';
-          let res = await axios.head(url)
-          mime = res.headers['content-type']
-          if (mime.split("/")[1] === "gif") {
-         return bob.sendMessage(jid, { video: await getBuffer(url), caption: caption, gifPlayback: true, ...options}, { quoted: quoted, ...options})
-          }
-          let type = mime.split("/")[0]+"Message"
-          if(mime === "application/pdf"){
-         return bob.sendMessage(jid, { document: await getBuffer(url), mimetype: 'application/pdf', caption: caption, ...options}, { quoted: quoted, ...options })
-          }
-          if(mime.split("/")[0] === "image"){
-         return bob.sendMessage(jid, { image: await getBuffer(url), caption: caption, ...options}, { quoted: quoted, ...options})
-          }
-          if(mime.split("/")[0] === "video"){
-         return bob.sendMessage(jid, { video: await getBuffer(url), caption: caption, mimetype: 'video/mp4', ...options}, { quoted: quoted, ...options })
-          }
-          if(mime.split("/")[0] === "audio"){
-         return bob.sendMessage(jid, { audio: await getBuffer(url), caption: caption, mimetype: 'audio/mpeg', ...options}, { quoted: quoted, ...options })
-          }
-          }
-    
-        
-        /**
-         * 
-         * @param {*} jid 
-         * @param {*} text 
-         * @param {*} quoted 
-         * @param {*} options 
-         * @returns 
-         */
-        bob.sendText = (jid, text, quoted = '', options) => bob.sendMessage(jid, { text: text, ...options }, { quoted, ...options })
-    
-    
-        /**
-         * 
-         * @param {*} jid 
-         * @param {*} text 
-         * @param {*} quoted 
-         * @param {*} options 
-         * @returns 
-         */
-        bob.sendTextWithMentions = async (jid, text, quoted, options = {}) => bob.sendMessage(jid, { text: text, mentions: [...text.matchAll(/@(\d{0,16})/g)].map(v => v[1] + '@s.whatsapp.net'), ...options }, { quoted })
-    
-        /**
-         * 
-         * @param {*} jid 
-         * @param {*} path 
-         * @param {*} quoted 
-         * @param {*} options 
-         * @returns 
-         */
-        bob.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
-            let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
-            let buffer
-            if (options && (options.packname || options.author)) {
-                buffer = await writeExifImg(buff, options)
-            } else {
-                buffer = await imageToWebp(buff)
+
+    bob.serializeM = (m) => smsg(bob, m, store)
+    bob.ev.on('creds.update', saveCreds)
+
+    bob.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect, qr } = update;
+        if (qr) {
+            console.log(`[QR CODE GENERATED] Harap pindai QR di terminal: ${qr}`);
+        }
+        if (connection === 'close') {
+            global.waSock = null;
+            const shouldRestart = new Boom(lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log('Koneksi terputus, mencoba restart:', shouldRestart);
+            if (shouldRestart) {
+                // Berikan jeda sedikit agar proses sebelumnya benar-benar mati
+                setTimeout(() => startBot(), 3000);
             }
-    
-            await bob.sendMessage(jid, { sticker: { url: buffer }, ...options }, { quoted })
-            return buffer
-        }
-    
-        /**
-         * 
-         * @param {*} jid 
-         * @param {*} path 
-         * @param {*} quoted 
-         * @param {*} options 
-         * @returns 
-         */
-        bob.sendVideoAsSticker = async (jid, path, quoted, options = {}) => {
-            let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
-            let buffer
-            if (options && (options.packname || options.author)) {
-                buffer = await writeExifVid(buff, options)
-            } else {
-                buffer = await videoToWebp(buff)
+            else {
+                console.log('Connection closed. You are logged out.');
+                rl.close();
             }
-    
-            await bob.sendMessage(jid, { sticker: { url: buffer }, ...options }, { quoted })
-            return buffer
+        } else if (connection === 'open') {
+            console.log('\n✅ Bot berhasil terhubung ke WhatsApp!\n');
         }
-        
-        /**
-         * 
-         * @param {*} message 
-         * @param {*} filename 
-         * @param {*} attachExtension 
-         * @returns 
-         */
-        bob.downloadAndSaveMediaMessage = async (message, filename, attachExtension = true) => {
-            let quoted = message.msg ? message.msg : message
-            let mime = (message.msg || message).mimetype || ''
-            let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0]
-            const stream = await downloadContentFromMessage(quoted, messageType)
-            let buffer = Buffer.from([])
-            for await(const chunk of stream) {
-                buffer = Buffer.concat([buffer, chunk])
-            }
-        let type = await FileType.fromBuffer(buffer)
-            trueFileName = attachExtension ? (filename + '.' + type.ext) : filename
-            // save to file
-            await fs.writeFileSync(trueFileName, buffer)
-            return trueFileName
+    });
+
+
+
+    /**
+    *
+    * @param {*} jid
+    * @param {*} url
+    * @param {*} caption
+    * @param {*} quoted
+    * @param {*} options
+    */
+    bob.sendFileUrl = async (jid, url, caption, quoted, options = {}) => {
+        let mime = '';
+        let res = await axios.head(url)
+        mime = res.headers['content-type']
+        if (mime.split("/")[1] === "gif") {
+            return bob.sendMessage(jid, { video: await getBuffer(url), caption: caption, gifPlayback: true, ...options }, { quoted: quoted, ...options })
         }
-    
-        bob.downloadMediaMessage = async (message) => {
-            let mime = (message.msg || message).mimetype || ''
-            let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0]
-            const stream = await downloadContentFromMessage(message, messageType)
-            let buffer = Buffer.from([])
-            for await(const chunk of stream) {
-                buffer = Buffer.concat([buffer, chunk])
+        let type = mime.split("/")[0] + "Message"
+        if (mime === "application/pdf") {
+            return bob.sendMessage(jid, { document: await getBuffer(url), mimetype: 'application/pdf', caption: caption, ...options }, { quoted: quoted, ...options })
         }
-            
+        if (mime.split("/")[0] === "image") {
+            return bob.sendMessage(jid, { image: await getBuffer(url), caption: caption, ...options }, { quoted: quoted, ...options })
+        }
+        if (mime.split("/")[0] === "video") {
+            return bob.sendMessage(jid, { video: await getBuffer(url), caption: caption, mimetype: 'video/mp4', ...options }, { quoted: quoted, ...options })
+        }
+        if (mime.split("/")[0] === "audio") {
+            return bob.sendMessage(jid, { audio: await getBuffer(url), caption: caption, mimetype: 'audio/mpeg', ...options }, { quoted: quoted, ...options })
+        }
+    }
+
+
+    /**
+     * 
+     * @param {*} jid 
+     * @param {*} text 
+     * @param {*} quoted 
+     * @param {*} options 
+     * @returns 
+     */
+    bob.sendText = (jid, text, quoted = '', options) => bob.sendMessage(jid, { text: text, ...options }, { quoted, ...options })
+
+
+    /**
+     * 
+     * @param {*} jid 
+     * @param {*} text 
+     * @param {*} quoted 
+     * @param {*} options 
+     * @returns 
+     */
+    bob.sendTextWithMentions = async (jid, text, quoted, options = {}) => bob.sendMessage(jid, { text: text, mentions: [...text.matchAll(/@(\d{0,16})/g)].map(v => v[1] + '@s.whatsapp.net'), ...options }, { quoted })
+
+    /**
+     * 
+     * @param {*} jid 
+     * @param {*} path 
+     * @param {*} quoted 
+     * @param {*} options 
+     * @returns 
+     */
+    bob.sendImageAsSticker = async (jid, path, quoted, options = {}) => {
+        let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
+        let buffer
+        if (options && (options.packname || options.author)) {
+            buffer = await writeExifImg(buff, options)
+        } else {
+            buffer = await imageToWebp(buff)
+        }
+
+        await bob.sendMessage(jid, { sticker: { url: buffer }, ...options }, { quoted })
         return buffer
-         } 
-        
-    
-    
-        /**
-         * 
-         * @param {*} jid 
-         * @param {*} message 
-         * @param {*} forceForward 
-         * @param {*} options 
-         * @returns 
-         */
-        bob.copyNForward = async (jid, message, forceForward = false, options = {}) => {
-            let vtype
-            if (options.readViewOnce) {
-                message.message = message.message && message.message.ephemeralMessage && message.message.ephemeralMessage.message ? message.message.ephemeralMessage.message : (message.message || undefined)
-                vtype = Object.keys(message.message.viewOnceMessage.message)[0]
-                delete(message.message && message.message.ignore ? message.message.ignore : (message.message || undefined))
-                delete message.message.viewOnceMessage.message[vtype].viewOnce
-                message.message = {
-                    ...message.message.viewOnceMessage.message
-                }
-            }
-    
-            let mtype = Object.keys(message.message)[0]
-            let content = await generateForwardMessageContent(message, forceForward)
-            let ctype = Object.keys(content)[0]
-            let context = {}
-            if (mtype != "conversation") context = message.message[mtype].contextInfo
-            content[ctype].contextInfo = {
-                ...context,
-                ...content[ctype].contextInfo
-            }
-            const waMessage = await generateWAMessageFromContent(jid, content, options ? {
-                ...content[ctype],
-                ...options,
-                ...(options.contextInfo ? {
-                    contextInfo: {
-                        ...content[ctype].contextInfo,
-                        ...options.contextInfo
-                    }
-                } : {})
-            } : {})
-            await bob.relayMessage(jid, waMessage.message, { messageId:  waMessage.key.id })
-            return waMessage
+    }
+
+    /**
+     * 
+     * @param {*} jid 
+     * @param {*} path 
+     * @param {*} quoted 
+     * @param {*} options 
+     * @returns 
+     */
+    bob.sendVideoAsSticker = async (jid, path, quoted, options = {}) => {
+        let buff = Buffer.isBuffer(path) ? path : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64') : /^https?:\/\//.test(path) ? await (await getBuffer(path)) : fs.existsSync(path) ? fs.readFileSync(path) : Buffer.alloc(0)
+        let buffer
+        if (options && (options.packname || options.author)) {
+            buffer = await writeExifVid(buff, options)
+        } else {
+            buffer = await videoToWebp(buff)
         }
-    
+
+        await bob.sendMessage(jid, { sticker: { url: buffer }, ...options }, { quoted })
+        return buffer
+    }
+
+    /**
+     * 
+     * @param {*} message 
+     * @param {*} filename 
+     * @param {*} attachExtension 
+     * @returns 
+     */
+    bob.downloadAndSaveMediaMessage = async (message, filename, attachExtension = true) => {
+        let quoted = message.msg ? message.msg : message
+        let mime = (message.msg || message).mimetype || ''
+        let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0]
+        const stream = await downloadContentFromMessage(quoted, messageType)
+        let buffer = Buffer.from([])
+        for await (const chunk of stream) {
+            buffer = Buffer.concat([buffer, chunk])
+        }
+        let type = await FileType.fromBuffer(buffer)
+        trueFileName = attachExtension ? (filename + '.' + type.ext) : filename
+        // save to file
+        await fs.writeFileSync(trueFileName, buffer)
+        return trueFileName
+    }
+
+    bob.downloadMediaMessage = async (message) => {
+        let mime = (message.msg || message).mimetype || ''
+        let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0]
+        const stream = await downloadContentFromMessage(message, messageType)
+        let buffer = Buffer.from([])
+        for await (const chunk of stream) {
+            buffer = Buffer.concat([buffer, chunk])
+        }
+
+        return buffer
+    }
+
+
+
+    /**
+     * 
+     * @param {*} jid 
+     * @param {*} message 
+     * @param {*} forceForward 
+     * @param {*} options 
+     * @returns 
+     */
+    bob.copyNForward = async (jid, message, forceForward = false, options = {}) => {
+        let vtype
+        if (options.readViewOnce) {
+            message.message = message.message && message.message.ephemeralMessage && message.message.ephemeralMessage.message ? message.message.ephemeralMessage.message : (message.message || undefined)
+            vtype = Object.keys(message.message.viewOnceMessage.message)[0]
+            delete (message.message && message.message.ignore ? message.message.ignore : (message.message || undefined))
+            delete message.message.viewOnceMessage.message[vtype].viewOnce
+            message.message = {
+                ...message.message.viewOnceMessage.message
+            }
+        }
+
+        let mtype = Object.keys(message.message)[0]
+        let content = await generateForwardMessageContent(message, forceForward)
+        let ctype = Object.keys(content)[0]
+        let context = {}
+        if (mtype != "conversation") context = message.message[mtype].contextInfo
+        content[ctype].contextInfo = {
+            ...context,
+            ...content[ctype].contextInfo
+        }
+        const waMessage = await generateWAMessageFromContent(jid, content, options ? {
+            ...content[ctype],
+            ...options,
+            ...(options.contextInfo ? {
+                contextInfo: {
+                    ...content[ctype].contextInfo,
+                    ...options.contextInfo
+                }
+            } : {})
+        } : {})
+        await bob.relayMessage(jid, waMessage.message, { messageId: waMessage.key.id })
+        return waMessage
+    }
+
 
     return bob;
 };

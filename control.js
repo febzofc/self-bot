@@ -133,13 +133,14 @@ module.exports = bob = async (bob, m, chatUpdate, store) => {
                     command,
                     mime
                 });
+                pluginManager.handleExecutionSuccess(name);
             } catch (e) {
                 console.error(`Error executing plugin ${name}:`, e);
                 const res = pluginManager.handleExecutionError(name, e, { command: CmDPlugins });
                 if (res.isRealError) {
-                    bob.sendText(m.chat, `⚠️ *PLUGIN ERROR TERDETEKSI*\nPlugin *${name}* mengalami error parah (${res.errorDetail.errorType}) dan telah dimasukkan ke daftar plugin error.\n\n*Log:* ${res.errorDetail.errorMessage}`, m);
+                    bob.sendText(m.chat, `⚠️ *PLUGIN ERROR TERDETEKSI*\nPlugin *${name}* telah mengalami error 5 kali berturut-turut (${res.errorDetail.errorType}) dan telah dimasukkan ke daftar plugin error.\n\n*Log:* ${res.errorDetail.errorMessage}`, m);
                 } else {
-                    bob.sendText(m.chat, `Upss... terjadi kesalahan saat menjalankan plugin (${res.failuresCount}/3)\nLog kesalahan:\n${e}`, m);
+                    bob.sendText(m.chat, `Upss... terjadi kesalahan saat menjalankan plugin (${res.failuresCount}/5 kali berturut-turut)\nLog kesalahan:\n${e}`, m);
                 }
             }
         }
