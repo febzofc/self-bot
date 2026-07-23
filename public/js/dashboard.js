@@ -118,13 +118,19 @@ module.exports = {
     }
 
     function showLoginModal() {
-        loginModalOverlay.classList.remove('hidden');
-        btnLogoutOwner.style.display = 'none';
+        if (loginModalOverlay) {
+            loginModalOverlay.classList.remove('hidden');
+            loginModalOverlay.style.setProperty('display', 'flex', 'important');
+        }
+        if (btnLogoutOwner) btnLogoutOwner.style.display = 'none';
     }
 
     function hideLoginModal() {
-        loginModalOverlay.classList.add('hidden');
-        btnLogoutOwner.style.display = 'inline-flex';
+        if (loginModalOverlay) {
+            loginModalOverlay.classList.add('hidden');
+            loginModalOverlay.style.setProperty('display', 'none', 'important');
+        }
+        if (btnLogoutOwner) btnLogoutOwner.style.display = 'inline-flex';
     }
 
     // Check Auth State on Page Load
@@ -486,12 +492,18 @@ module.exports = {
         resetDropzone();
         newPluginFilename.value = '';
         newPluginCode.value = STARTER_PLUGIN_TEMPLATE;
-        createPluginModal.classList.remove('hidden');
+        if (createPluginModal) {
+            createPluginModal.classList.remove('hidden');
+            createPluginModal.style.setProperty('display', 'flex', 'important');
+        }
     });
 
     btnCancelCreatePlugin.addEventListener('click', () => {
         resetDropzone();
-        createPluginModal.classList.add('hidden');
+        if (createPluginModal) {
+            createPluginModal.classList.add('hidden');
+            createPluginModal.style.setProperty('display', 'none', 'important');
+        }
     });
 
     createPluginForm.addEventListener('submit', async (e) => {
@@ -511,7 +523,10 @@ module.exports = {
             });
             const data = await res.json();
             if (data.success) {
-                createPluginModal.classList.add('hidden');
+                if (createPluginModal) {
+                    createPluginModal.classList.add('hidden');
+                    createPluginModal.style.setProperty('display', 'none', 'important');
+                }
                 showToast(`Plugin baru '${data.result.filename}' berhasil dibuat!`);
                 await fetchPluginStats();
                 await selectPlugin(data.result.filename);
