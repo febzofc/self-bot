@@ -196,15 +196,16 @@ module.exports = bob = async (bob, m, chatUpdate, store) => {
                 }
 
                 const perintah = commandList.join('\n');
-                let me = pushname;
-                let totag = `Halo @${me.split('@')[0]} ${ucapanWaktu}\nberikut adalah menu yang tersedia!\n\n`;
-                let desc = `\n\n_plugin:_ ${stats.activeCount}/${stats.totalPlugins}\n_error:_ ${stats.erroredCount}`;
+                let userJid = m.sender;
+                let userNumber = userJid.split('@')[0];
+                let totag = `Halo @${userNumber} 👋\n${ucapanWaktu}\nBerikut adalah menu yang tersedia!\n\n`;
+                let desc = `\n\n_Plugin Active:_ ${stats.activeCount}/${stats.totalPlugins}\n_Plugin Error:_ ${stats.erroredCount}`;
 
-                bob.sendMessage(m.chat, {
+                await bob.sendMessage(m.chat, {
                     text: totag + perintah + desc,
-                    mentions: [me]
+                    mentions: [userJid]
                 }, {
-                    quoted: fake
+                    quoted: m
                 });
             }
                 break

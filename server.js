@@ -344,6 +344,11 @@ app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
+// Anime Streaming Web UI route (Otakudesu x Self-Bot)
+app.get('/anime-stream', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'anime_stream.html'));
+});
+
 // Watch route (SPA style: serves index.html which handles routing client-side)
 app.get('/watch/:channel', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));

@@ -2,7 +2,7 @@ const fs = require('fs');
 module.exports = { 
       CmD: ['sticker'],
       aliases: ['sticker','s','stiker','setiker'],
-      categori: "convert",
+      categori: "maker",
       exec: async(m, { quoted, qmsg, mime, bob, prefix, command }) => {
           if (/image/.test(mime)) {          
                 let media = await quoted.download()

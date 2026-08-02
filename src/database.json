@@ -1,5 +1,15 @@
 {
-  "users": {},
+  "users": {
+    "6285849261085@s.whatsapp.net": {
+      "game": {
+        "ttc": {
+          "win": 1,
+          "lose": 0,
+          "draw": 0
+        }
+      }
+    }
+  },
   "phising": {
     "61665b9b": {
       "id": "61665b9b",
@@ -21,6 +31,13 @@
       "type": "photo",
       "mode": "front",
       "url": "https://muhammadiyah.or.id"
+    }
+  },
+  "game": {
+    "ttc": {
+      "win": 0,
+      "lose": 1,
+      "draw": 0
     }
   }
 }

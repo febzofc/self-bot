@@ -1,12 +1,16 @@
 {
   "pluginErrors": {},
   "pluginFailures": {
+    "anime_otakudesu.js": 0,
     "convert_sticker.js": 0,
-    "dl_instagram.js": 0,
     "dl_tiktok.js": 0,
+    "game_suit.js": 0,
+    "game_tictactoe.js": 0,
+    "maker_brat.js": 0,
+    "maker_iqc.js": 0,
+    "maker_smeme.js": 0,
     "ncs.js": 0,
     "search_tracemoe.js": 0,
-    "test_syntax_error.js": 0,
-    "test_demo.js": 0
+    "dl_instagram.js": 0
   }
 }
