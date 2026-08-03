@@ -227,6 +227,16 @@ const startBot = async () => {
         }
     });
 
+    // --- GROUP PARTICIPANTS UPDATE (WELCOME & GOODBYE) ---
+    const welcomeGroup = require('./lib/welcomeGroup.js');
+    bob.ev.on('group-participants.update', async (anu) => {
+        try {
+            await welcomeGroup(bob, anu);
+        } catch (err) {
+            console.log(err);
+        }
+    });
+
     // --- UTILITIES ---
     bob.decodeJid = (jid) => {
         if (!jid) return jid;

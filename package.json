@@ -36,6 +36,7 @@
     "node-cache": "^5.1.2",
     "node-fetch": "^2.7.0",
     "node-webpmux": "^3.2.1",
+    "shiki": "^4.4.1",
     "steno": "^1.0.0",
     "syntax-error": "^1.4.0",
     "uuid": "^9.0.1",

@@ -26,6 +26,118 @@ const {
 } = require('./lib/fungsi.js')
 const { v4: uuidv4 } = require('uuid');
 const { color } = require('./lib/color.js')
+const { randomBytes, randomUUID } = require('crypto');
+
+let generateWAMessageFromContent;
+async function getGenerateWAMessageFromContent() {
+  if (!generateWAMessageFromContent) {
+    try {
+      const baileys = await import('@whiskeysockets/baileys');
+      generateWAMessageFromContent = baileys.generateWAMessageFromContent;
+    } catch (e) {}
+  }
+  return generateWAMessageFromContent;
+}
+
+let codeToTokens;
+
+const COLOR_MAP = {
+  "#CB7676": "KEYWORD",
+  "#4D9375": "KEYWORD",
+  "#BD976A": "KEYWORD",
+  "#AB5959": "KEYWORD",
+  "#80A665": "METHOD",
+  "#B8A965": "METHOD",
+  "#59C639": "METHOD",
+  "#569CD6": "METHOD",
+  "#C98A7D77": "STR",
+  "#C98A7D": "STR",
+  "#CE9178": "STR",
+  "#4C9A91": "NUMBER",
+  "#B5CEA8": "NUMBER",
+  "#758575DD": "COMMENT",
+  "#758575": "COMMENT",
+  "#6A9955": "COMMENT",
+  "#5C6370": "COMMENT"
+};
+
+function getTokenType(hexColor) {
+  if (!hexColor) return "DEFAULT";
+  const upper = hexColor.toUpperCase();
+  if (COLOR_MAP[upper]) return COLOR_MAP[upper];
+  if (COLOR_MAP[hexColor]) return COLOR_MAP[hexColor];
+  
+  if (/#(CB|BD|4D|AB)/i.test(hexColor)) return "KEYWORD";
+  if (/#(80|B8|59|56)/i.test(hexColor)) return "METHOD";
+  if (/#(C9|CE)/i.test(hexColor)) return "STR";
+  if (/#(4C|B5)/i.test(hexColor)) return "NUMBER";
+  if (/#(75|5C|6A)/i.test(hexColor)) return "COMMENT";
+  return "DEFAULT";
+}
+
+async function tokenize(code, language = "javascript", displayLabel = null) {
+  if (!codeToTokens) {
+    try {
+      const shiki = await import("shiki");
+      codeToTokens = shiki.codeToTokens;
+    } catch (e) {}
+  }
+
+  if (codeToTokens) {
+    try {
+      const tokens = (await codeToTokens(code, {
+        lang: language,
+        theme: "vitesse-dark"
+      })).tokens.map((line) => {
+        return line.map(({ content, color }) => {
+          return {
+            content,
+            type: getTokenType(color)
+          };
+        });
+      }).flatMap((value, index, original) => {
+        return index === original.length - 1
+          ? value
+          : [
+            ...value,
+            {
+              content: "\n",
+              type: "DEFAULT"
+            }
+          ]
+      });
+
+      return {
+        view_model: {
+          primitive: {
+            language: displayLabel || language,
+            code_blocks: tokens,
+            __typename: "GenAICodeUXPrimitive"
+          },
+          __typename: "GenAISingleLayoutViewModel"
+        }
+      };
+    } catch (e) {}
+  }
+
+  const simpleTokens = code.split('\n').map((line, idx, arr) => {
+    return [
+      { content: line, type: "DEFAULT" },
+      ...(idx < arr.length - 1 ? [{ content: "\n", type: "DEFAULT" }] : [])
+    ];
+  }).flat();
+
+  return {
+    view_model: {
+      primitive: {
+        language: displayLabel || language,
+        code_blocks: simpleTokens,
+        __typename: "GenAICodeUXPrimitive"
+      },
+      __typename: "GenAISingleLayoutViewModel"
+    }
+  };
+}
 
 //datase
 global.db.data = JSON.parse(fs.readFileSync('./src/database.json'));
@@ -162,51 +274,148 @@ module.exports = bob = async (bob, m, chatUpdate, store) => {
                 const stats = pluginManager.getStats();
                 const activePlugins = Object.values(plugins);
                 const commandsByCategory = {};
-                const uncategorizedCommands = [];
 
                 activePlugins.forEach(plugin => {
                     if (!plugin) return;
-                    const { CmD, categori } = plugin;
+                    const { CmD, categori, filename } = plugin;
                     if (!CmD || !Array.isArray(CmD)) return;
-                    if (!categori) {
-                        uncategorizedCommands.push(...CmD);
-                        return;
+
+                    let cat = categori ? categori.toString().toLowerCase().trim() : '';
+                    if (!cat && filename) {
+                        // Fallback inspection based on filename prefix if category field is omitted
+                        const match = filename.match(/^(dl|game|maker|anime|search|convert)/i);
+                        if (match) {
+                            const prefixMap = {
+                                dl: 'downloader',
+                                game: 'game',
+                                maker: 'maker',
+                                anime: 'anime',
+                                search: 'search',
+                                convert: 'maker'
+                            };
+                            cat = prefixMap[match[1].toLowerCase()] || 'other';
+                        } else {
+                            cat = 'other';
+                        }
+                    } else if (!cat) {
+                        cat = 'other';
                     }
 
-                    if (!commandsByCategory[categori]) {
-                        commandsByCategory[categori] = [];
+                    if (!commandsByCategory[cat]) {
+                        commandsByCategory[cat] = [];
                     }
 
-                    const commandsWithCategory = CmD.map(cmd => `${cmd}`);
-                    commandsByCategory[categori].push(...commandsWithCategory);
+                    commandsByCategory[cat].push(...CmD.map(cmd => `${prefix}${cmd}`));
                 });
 
-                const commandList = [];
+                // Built-in system & owner commands
+                const systemCommands = ['runtime', 'del', 'send', 'create_link', 'listerror', 'getcode', 'savecode', 'retryplugin'];
+                commandsByCategory['system'] = systemCommands.map(cmd => `${prefix}${cmd}`);
 
-                Object.entries(commandsByCategory).forEach(([category, commands]) => {
-                    commandList.push(`_list fitur ${category.toLowerCase()}_`);
-                    commandList.push(...commands.map(cmd => `  ${prefix + cmd}`));
-                    commandList.push('');
-                });
+                let headerText = `Halo *${pushname}* 👋${ucapanWaktu}\n\nActive Plugins: \`${stats.activeCount} / ${stats.totalPlugins}\`\nErrored Plugins: \`${stats.erroredCount}\`\nPrefix: \`${prefix}\``;
 
-                if (uncategorizedCommands.length) {
-                    commandList.push(`*NO CATEGORY*`);
-                    commandList.push(...uncategorizedCommands.map(cmd => ` ${prefix + cmd}`));
-                    commandList.push('');
+                const sections = [
+                    {
+                        view_model: {
+                            primitive: {
+                                text: headerText,
+                                __typename: "GenAIMarkdownTextUXPrimitive"
+                            },
+                            __typename: "GenAISingleLayoutViewModel"
+                        }
+                    }
+                ];
+
+                let fallbackCodeBlocks = '';
+
+                // Build a SEPARATE code section primitive for EACH category
+                for (const [category, commands] of Object.entries(commandsByCategory)) {
+                    const catUpper = category.toUpperCase();
+
+                    let catSnippet = '';
+                    
+                    commands.forEach(cmd => {
+                        let hashtagCmd = cmd;
+                        if (cmd.startsWith('.')) {
+                            hashtagCmd = '#' + cmd.slice(1);
+                        } else if (!cmd.startsWith('#')) {
+                            hashtagCmd = '#' + cmd;
+                        }
+                        const cleanName = cmd.replace(/^[.#]/, '');
+                        catSnippet += `${hashtagCmd}\n`;
+                    });
+
+                    catSnippet = catSnippet.trimEnd();
+
+                    // Pass custom displayLabel so the UI header displays the Category Name instead of "JAVASCRIPT"
+                    const catCodeSection = await tokenize(catSnippet, "javascript", `📁${catUpper}`);
+                    sections.push(catCodeSection);
+
+                    const hashtagList = commands.map(c => c.startsWith('.') ? '#' + c.slice(1) : (c.startsWith('#') ? c : '#' + c));
+                    fallbackCodeBlocks += `\`\`\`javascript\n/* 📂 KATEGORI MENU: ${catUpper} */\n${hashtagList.map(h => `${h} = "Active"`).join('\n')}\n\`\`\`\n\n`;
                 }
 
-                const perintah = commandList.join('\n');
-                let userJid = m.sender;
-                let userNumber = userJid.split('@')[0];
-                let totag = `Halo @${userNumber} 👋\n${ucapanWaktu}\nBerikut adalah menu yang tersedia!\n\n`;
-                let desc = `\n\n_Plugin Active:_ ${stats.activeCount}/${stats.totalPlugins}\n_Plugin Error:_ ${stats.erroredCount}`;
+                const messageContextInfo = {
+                    botMessageSecret: randomBytes(32),
+                    botMetadata: {
+                        messageDisclaimerText: "Self-Bot by Febriansyah"
+                    }
+                };
 
-                await bob.sendMessage(m.chat, {
-                    text: totag + perintah + desc,
-                    mentions: [userJid]
-                }, {
-                    quoted: m
-                });
+                const unified = {
+                    response_id: randomUUID(),
+                    sections: sections
+                };
+
+                const richResponseMessage = {
+                    submessages: [],
+                    messageType: 1,
+                    unifiedResponse: {
+                        data: Buffer.from(JSON.stringify(unified))
+                    }
+                };
+
+                try {
+                    const genMsgFunc = await getGenerateWAMessageFromContent();
+                    if (!genMsgFunc) throw new Error('Fungsi generateWAMessageFromContent tidak tersedia');
+
+                    const waMsg = genMsgFunc(m.chat, {
+                        messageContextInfo,
+                        botForwardedMessage: {
+                            message: {
+                                richResponseMessage: {
+                                    ...richResponseMessage,
+                                    contextInfo: {
+                                        forwardingScore: 1,
+                                        isForwarded: true,
+                                        forwardedAiBotMessageInfo: {
+                                            botJid: "867051314767696@bot"
+                                        },
+                                        forwardOrigin: 4,
+                                        botMessageSharingInfo: {
+                                            botEntryPointOrigin: 2,
+                                            forwardScore: 1
+                                        },
+                                        ...(m ? {
+                                            stanzaId: m.key.id,
+                                            participant: m.participant || m.key.participant || m.key.remoteJid,
+                                            quotedMessage: m.message,
+                                            quotedType: 0
+                                        } : {})
+                                    }
+                                }
+                            }
+                        }
+                    }, {});
+
+                    await bob.relayMessage(m.chat, waMsg.message, {
+                        messageId: waMsg.key.id
+                    });
+                } catch (err) {
+                    console.error('Error sending rich menu:', err);
+                    let fallbackMsg = `${headerText}\n\n${fallbackCodeBlocks}`;
+                    await bob.sendMessage(m.chat, { text: fallbackMsg }, { quoted: m });
+                }
             }
                 break
 

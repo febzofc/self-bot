@@ -27,7 +27,7 @@ Title english : ${anilist.title.english}
 Detail Episode : ${episode}
 Scene anime : ${data}
 `
-       let send = {
+      /* let send = {
           text: cek,                 
           contextInfo:{
            externalAdReply:{
@@ -42,9 +42,8 @@ Scene anime : ${data}
             }
            }
          }
-         bob.sendMessage(m.chat, send, { quoted : m }) 
-         
-//bob.sendMessage(m.chat, { image: { url: image }, caption: cek })
+         bob.sendMessage(m.chat, send, { quoted : m }) */
+         bob.sendMessage(m.chat, { image: { url: image }, caption: cek })
  /* var button = [
              { 
               buttonId: anilist.isAdult ? '#' : `#otakudesu search|${anilist.title.romanji}`, 

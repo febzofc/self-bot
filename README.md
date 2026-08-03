@@ -36,6 +36,13 @@ Nonton siaran langsung TV Indonesia (RCTI, SCTV, Trans TV, Metro TV, dll.) secar
 ### 5. 🧩 Web Dashboard Plugin Monitor (Owner Console)
 Dashboard admin web khusus pemilik untuk memantau status plugin, mengedit kode plugin secara live, dan hot-reload plugin tanpa restart server.
 
+### 6. 🖼️ ImageMagick Welcome & Goodbye Card System
+Sistem ucapan selamat datang (Welcome) dan perpisahan (Goodbye) otomatis untuk grup WhatsApp:
+- **Kartu Gambar Custom HD:** Menggunakan ImageMagick `convert` untuk merender foto profil member, background aesthetic, nama grup, waktu, dan nomor telepon member.
+- **Normal Image & @Mention Tag:** Pesan dikirim sebagai gambar biasa lengkap dengan caption kata sambutan/perpisahan dan notifikasi tag `@mention` user.
+- **Auto Fallback Profile Picture:** Apabila foto profil user disembunyikan/kosong/privat, otomatis mengalihkan ke `lib/bob.jpg` sebagai avatar pengganti.
+- **Tahan Error (Robust Handling):** Mampu menangani `string` maupun `object` participant JID dari Baileys secara aman.
+
 ---
 
 ## 📋 Ringkasan Perintah Baru
@@ -60,10 +67,10 @@ Dashboard admin web khusus pemilik untuk memantau status plugin, mengedit kode p
 
 1. **Persyaratan Sistem:**
    - Node.js versi >= 16
-   - **FFmpeg** (Wajib untuk pembuatan stiker webp & konversi media)
+   - **FFmpeg & ImageMagick** (Wajib untuk stiker, konversi media & kartu ucapan grup)
      ```bash
      # Di Termux:
-     pkg install ffmpeg -y
+     pkg install ffmpeg imagemagick -y
      ```
 
 2. **Clone Repository:**
