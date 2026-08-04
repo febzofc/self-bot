@@ -6,7 +6,7 @@ const fs = require('fs');
 require('./config.js');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 2555;
 
 // Middleware to serve static files
 app.use(express.static(path.join(__dirname, 'public')));
