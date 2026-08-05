@@ -175,19 +175,28 @@ module.exports = {
         let args = text ? text.trim().split(/ +/) : [];
         let cmd = command.toLowerCase().replace(/^#/, '');
 
+        // === CEK TIMEOUT SESI (Auto Reset jika > 1 Menit/60 Detik) ===
+        if (global.otakudesuSession[sender]) {
+            if (Date.now() - global.otakudesuSession[sender].timestamp > 60000) {
+                delete global.otakudesuSession[sender];
+            }
+        }
+
         // === PENANGANAN KELUAR SESI (#exit / #keluar / #stop / #batal) ===
         if (cmd === 'exit' || cmd === 'keluar' || cmd === 'stop' || cmd === 'batal') {
             if (global.otakudesuSession[sender]) {
                 delete global.otakudesuSession[sender];
                 return m.reply('🌸 *Sesi Otakudesu telah diakhiri. Terima kasih!* 🍡');
-            } else {
+            } else if (['otakudesu', 'otaku', 'anime'].includes(command.toLowerCase())) {
                 return m.reply('❌ Kamu sedang tidak memiliki sesi Otakudesu yang aktif.');
             }
+            return;
         }
 
         // === JIKA PENGGUNA MEMILIKI SESI AKTIF ===
         if (global.otakudesuSession[sender]) {
             const session = global.otakudesuSession[sender];
+            session.timestamp = Date.now(); // Perbarui aktivitas terakhir
 
             // ----------------------------------------------------
             // STEP 1: SESI HASIL PENCARIAN (Menunggu Pilihan Anime #1 - #10)

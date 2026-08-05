@@ -1,16 +1,19 @@
 {
   "pluginErrors": {},
   "pluginFailures": {
-    "dl_soundcloud.js": 0,
+    "inspect_group.js": 0,
     "anime_otakudesu.js": 0,
     "convert_sticker.js": 0,
     "dl_instagram.js": 0,
+    "dl_soundcloud.js": 0,
     "dl_tiktok.js": 0,
     "game_suit.js": 0,
     "game_tictactoe.js": 0,
     "maker_brat.js": 0,
     "maker_iqc.js": 0,
     "maker_smeme.js": 0,
-    "search_tracemoe.js": 0
+    "search_tracemoe.js": 0,
+    "system_stats.js": 0,
+    "search_gsmarena.js": 0
   }
 }
