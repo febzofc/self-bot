@@ -173,6 +173,8 @@ const startBot = async () => {
 
     // Simpan socket ke global variable agar bisa diakses oleh Express
     global.waSock = bob;
+    global.bob = bob;
+
 
     if (!bob.authState.creds.registered && usePairingCode) {
         const phoneNumber = await question('Masukkan nomor telepon Anda (dengan kode negara, cth: 62812xxxxxx):\n');
@@ -303,6 +305,8 @@ const startBot = async () => {
                 rl.close();
             }
         } else if (connection === 'open') {
+            global.waSock = bob;
+            global.bob = bob;
             console.log('\n✅ Bot berhasil terhubung ke WhatsApp!\n');
         }
     });

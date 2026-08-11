@@ -147,7 +147,7 @@ if (global.db.data) global.db.data = {
     ...(global.db.data || {})
 };
 
-module.exports = bob = async (bob, m, chatUpdate, store) => {
+module.exports = async (bob, m, chatUpdate, store) => {
     try {
         var body = (m.mtype === 'conversation') ? m.message.conversation : (m.mtype == 'imageMessage') ? m.message.imageMessage.caption : (m.mtype == 'videoMessage') ? m.message.videoMessage.caption : (m.mtype == 'extendedTextMessage') ? m.message.extendedTextMessage.text : (m.mtype == 'buttonsResponseMessage') ? m.message.buttonsResponseMessage.selectedButtonId : (m.mtype == 'listResponseMessage') ? m.message.listResponseMessage.singleSelectReply.selectedRowId : (m.mtype == 'templateButtonReplyMessage') ? m.message.templateButtonReplyMessage.selectedId : (m.mtype === 'messageContextInfo') ? (m.message.buttonsResponseMessage?.selectedButtonId || m.message.listResponseMessage?.singleSelectReply.selectedRowId || m.text) : ''
 
@@ -229,6 +229,7 @@ module.exports = bob = async (bob, m, chatUpdate, store) => {
                 plugin.aliases instanceof String ?
                     plugin.aliases == CmDPlugins :
                     false;
+
             if (!turn) continue;
             try {
                 await plugin.exec(m, {
@@ -243,7 +244,9 @@ module.exports = bob = async (bob, m, chatUpdate, store) => {
                     text,
                     prefix,
                     command,
-                    mime
+                    mime,
+                    isCreator,
+                    isOwner: isCreator
                 });
                 pluginManager.handleExecutionSuccess(name);
             } catch (e) {
@@ -277,10 +280,11 @@ module.exports = bob = async (bob, m, chatUpdate, store) => {
 
                 activePlugins.forEach(plugin => {
                     if (!plugin) return;
-                    const { CmD, categori, filename } = plugin;
-                    if (!CmD || !Array.isArray(CmD)) return;
+                    const { CmD, categori, category, filename } = plugin;
+                    const aliasesList = CmD || plugin.aliases || [];
+                    if (!aliasesList || !Array.isArray(aliasesList)) return;
 
-                    let cat = categori ? categori.toString().toLowerCase().trim() : '';
+                    let cat = categori || category ? (categori || category).toString().toLowerCase().trim() : '';
                     if (!cat && filename) {
                         // Fallback inspection based on filename prefix if category field is omitted
                         const match = filename.match(/^(dl|game|maker|anime|search|convert)/i);
@@ -305,7 +309,7 @@ module.exports = bob = async (bob, m, chatUpdate, store) => {
                         commandsByCategory[cat] = [];
                     }
 
-                    commandsByCategory[cat].push(...CmD.map(cmd => `${prefix}${cmd}`));
+                    commandsByCategory[cat].push(...aliasesList.map(cmd => `${prefix}${cmd}`));
                 });
 
                 // Built-in system & owner commands

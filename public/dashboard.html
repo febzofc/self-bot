@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Monitoring Plugin - Owner Console</title>
+    <title>Owner Dashboard - Bot Monitoring Console</title>
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Styles -->
@@ -417,6 +417,368 @@
                 padding: 15px;
             }
         }
+        /* === Dashboard Tab Navigation === */
+        .dashboard-tab-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .dashboard-tabs {
+            display: flex;
+            gap: 4px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 4px;
+            overflow-x: auto;
+            max-width: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+        .dashboard-tabs::-webkit-scrollbar {
+            display: none;
+        }
+        .dash-tab {
+            padding: 9px 20px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: var(--font-primary);
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.25s ease;
+            white-space: nowrap;
+            position: relative;
+        }
+        .dash-tab:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .dash-tab.active {
+            background: linear-gradient(135deg, #e50914, #c0060f);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(229, 9, 20, 0.35);
+        }
+        .tab-badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 20px;
+            min-width: 20px;
+            text-align: center;
+            line-height: 1.4;
+            animation: badgePulse 2s infinite;
+        }
+        @keyframes badgePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* === System Logs Panel === */
+        .dashboard-logs-view {
+            display: none;
+            flex-direction: column;
+            height: calc(100vh - 260px);
+            min-height: 450px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+        .dashboard-logs-view.active-view {
+            display: flex;
+        }
+        .dashboard-workspace.hidden-view {
+            display: none !important;
+        }
+        .logs-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border-color);
+            gap: 12px;
+            flex-wrap: wrap;
+            background: rgba(15, 17, 23, 0.6);
+        }
+        .logs-toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .logs-toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .log-filter-btn {
+            padding: 6px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--font-primary);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .log-filter-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #ddd;
+        }
+        .log-filter-btn.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+        .log-filter-btn[data-level="error"].active {
+            background: rgba(231, 76, 60, 0.2);
+            color: #ff6b6b;
+            border-color: rgba(231, 76, 60, 0.4);
+        }
+        .log-filter-btn[data-level="warn"].active {
+            background: rgba(241, 196, 15, 0.2);
+            color: #f1c40f;
+            border-color: rgba(241, 196, 15, 0.4);
+        }
+        .log-filter-btn[data-level="info"].active {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+            border-color: rgba(46, 204, 113, 0.4);
+        }
+        .btn-clear-logs {
+            padding: 6px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--font-primary);
+            border-radius: 6px;
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            background: rgba(231, 76, 60, 0.1);
+            color: #ff6b6b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-clear-logs:hover {
+            background: rgba(231, 76, 60, 0.25);
+            border-color: rgba(231, 76, 60, 0.5);
+        }
+        .log-connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--text-muted);
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+        }
+        .log-connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e74c3c;
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+        .log-connection-dot.connected {
+            background: #2ecc71;
+            box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
+            animation: pulseGreen 2s infinite;
+        }
+        @keyframes pulseGreen {
+            0%, 100% { box-shadow: 0 0 4px rgba(46, 204, 113, 0.4); }
+            50% { box-shadow: 0 0 14px rgba(46, 204, 113, 0.8); }
+        }
+        .logs-terminal {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', monospace;
+            font-size: 12.5px;
+            line-height: 1.75;
+            background: #080a0e;
+        }
+        .logs-terminal::-webkit-scrollbar {
+            width: 6px;
+        }
+        .logs-terminal::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .logs-terminal::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 3px;
+        }
+        .logs-terminal::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.22);
+        }
+        .log-entry {
+            display: flex;
+            gap: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            transition: background 0.15s;
+            animation: logSlideIn 0.2s ease-out;
+        }
+        .log-entry:hover {
+            background: rgba(255, 255, 255, 0.035);
+        }
+        @keyframes logSlideIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .log-time {
+            color: #4a4e5a;
+            white-space: nowrap;
+            flex-shrink: 0;
+            user-select: none;
+            font-size: 11.5px;
+        }
+        .log-level-tag {
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 9.5px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            align-self: flex-start;
+            margin-top: 3px;
+            letter-spacing: 0.5px;
+        }
+        .log-level-tag.info {
+            background: rgba(46, 204, 113, 0.12);
+            color: #2ecc71;
+        }
+        .log-level-tag.warn {
+            background: rgba(241, 196, 15, 0.12);
+            color: #f1c40f;
+        }
+        .log-level-tag.error {
+            background: rgba(231, 76, 60, 0.12);
+            color: #ff6b6b;
+        }
+        .log-msg {
+            color: #b8bcc8;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .log-entry.error-entry .log-msg { color: #ff8a80; }
+        .log-entry.warn-entry .log-msg { color: #ffe082; }
+        .logs-empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            gap: 14px;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+        .logs-empty-state i {
+            font-size: 52px;
+            opacity: 0.25;
+        }
+        .logs-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 20px;
+            border-top: 1px solid var(--border-color);
+            font-size: 11px;
+            color: var(--text-muted);
+            background: rgba(15, 17, 23, 0.6);
+        }
+        .logs-footer-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .btn-scroll-bottom {
+            padding: 5px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--font-primary);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-scroll-bottom:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-header {
+                flex-direction: column;
+                height: auto;
+                padding: 15px;
+                gap: 12px;
+                align-items: center;
+                text-align: center;
+            }
+            .dashboard-header > div {
+                justify-content: center;
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .dashboard-tabs {
+                width: 100%;
+                justify-content: flex-start;
+            }
+            .dash-tab {
+                padding: 8px 14px;
+                font-size: 12px;
+            }
+            .dashboard-logs-view {
+                height: calc(100vh - 280px);
+                min-height: 400px;
+            }
+            .logs-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 10px;
+            }
+            .logs-toolbar-left,
+            .logs-toolbar-right {
+                justify-content: center;
+                flex-wrap: wrap;
+                width: 100%;
+            }
+            .terminal-input-bar {
+                flex-direction: column;
+                align-items: stretch !important;
+            }
+            .terminal-input-bar button {
+                width: 100% !important;
+            }
+        }
+        @media (max-width: 480px) {
+            .dashboard-stats-row {
+                grid-template-columns: 1fr;
+            }
+            .dashboard-stat-card {
+                padding: 14px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -490,11 +852,26 @@
         <header class="dashboard-header">
             <div class="dashboard-brand">
                 <i class="fa-solid fa-microchip logo-icon"></i>
-                <span class="dashboard-title">Plugin Monitoring Console</span>
-                <span class="badge-owner">Owner Console</span>
+                <span class="dashboard-title">Owner Dashboard</span>
+                <span class="badge-owner">Owner</span>
+            </div>
+            <div class="dashboard-tabs">
+                <button class="dash-tab active" data-tab="plugins">
+                    <i class="fa-solid fa-puzzle-piece"></i> Plugins
+                </button>
+                <button class="dash-tab" data-tab="logs">
+                    <i class="fa-solid fa-terminal"></i> System Logs
+                    <span class="tab-badge" id="log-count-badge" style="display: none;">0</span>
+                </button>
+                <button class="dash-tab" data-tab="terminal">
+                    <i class="fa-solid fa-square-terminal"></i> Terminal CLI
+                </button>
             </div>
             <div style="display: flex; align-items: center; gap: 16px;">
-                <a href="/" class="nav-link-tv">
+                <button id="btn-restart-bot" class="btn-filter" style="flex: none; padding: 8px 14px; background: rgba(155, 89, 182, 0.2); border-color: rgba(155, 89, 182, 0.4); color: #be2edd;" title="Restart Bot Server">
+                    <i class="fa-solid fa-rotate-right"></i> <span id="restart-bot-label">Restart Bot</span>
+                </button>
+                <a href="/index.html" class="nav-link-tv">
                     <i class="fa-solid fa-tv"></i> Ke Web TV Streaming
                 </a>
                 <div class="clock-container" style="background: rgba(255,255,255,0.05); padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
@@ -606,6 +983,86 @@
                     <div class="code-editor-container">
                         <textarea id="plugin-code-editor" placeholder="// Pilih file plugin untuk melihat/mengedit kode JS..." spellcheck="false"></textarea>
                     </div>
+                </div>
+            </div>
+
+            <!-- SYSTEM LOGS PANEL -->
+            <div class="dashboard-logs-view" id="logs-view">
+                <!-- Toolbar -->
+                <div class="logs-toolbar">
+                    <div class="logs-toolbar-left">
+                        <button class="log-filter-btn active" data-level="all">Semua</button>
+                        <button class="log-filter-btn" data-level="info"><i class="fa-solid fa-circle-info" style="color: #2ecc71;"></i> Info</button>
+                        <button class="log-filter-btn" data-level="warn"><i class="fa-solid fa-triangle-exclamation" style="color: #f1c40f;"></i> Warn</button>
+                        <button class="log-filter-btn" data-level="error"><i class="fa-solid fa-circle-xmark" style="color: #ff6b6b;"></i> Error</button>
+                    </div>
+                    <div class="logs-toolbar-right">
+                        <div class="log-connection-status">
+                            <span class="log-connection-dot" id="log-conn-dot"></span>
+                            <span id="log-conn-text">Terputus</span>
+                        </div>
+                        <button class="btn-clear-logs" id="btn-clear-logs">
+                            <i class="fa-solid fa-trash-can"></i> Hapus Log
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Terminal -->
+                <div class="logs-terminal" id="logs-terminal">
+                    <div class="logs-empty-state" id="logs-empty-state">
+                        <i class="fa-solid fa-terminal"></i>
+                        <span>Belum ada log sistem...</span>
+                        <span style="font-size: 12px; opacity: 0.5;">Log bot akan muncul secara realtime di sini</span>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="logs-footer">
+                    <div class="logs-footer-left">
+                        <span id="log-total-count">Total: 0 log</span>
+                        <span id="log-filtered-count"></span>
+                    </div>
+                    <button class="btn-scroll-bottom" id="btn-scroll-bottom">
+                        <i class="fa-solid fa-arrow-down"></i> Scroll ke Bawah
+                    </button>
+                </div>
+            </div>
+
+            <!-- TERMINAL CLI PANEL -->
+            <div class="dashboard-logs-view" id="terminal-view">
+                <div class="logs-toolbar">
+                    <div class="logs-toolbar-left">
+                        <span style="font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-terminal" style="color: #2ecc71;"></i> Remote Terminal Console (VPS / RDP / Termux)
+                        </span>
+                    </div>
+                    <div class="logs-toolbar-right">
+                        <div class="log-connection-status" id="runner-info-badge" style="background: rgba(46, 204, 113, 0.1); border-color: rgba(46, 204, 113, 0.3); color: #2ecc71;">
+                            <i class="fa-solid fa-server"></i> Mode Bot: Memuat...
+                        </div>
+                        <button class="btn-clear-logs" id="btn-clear-terminal">
+                            <i class="fa-solid fa-broom"></i> Bersihkan Layar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="logs-terminal" id="cmd-terminal-output" style="background: #050608; padding: 16px;">
+                    <div style="color: #2ecc71; font-size: 13px; margin-bottom: 12px; line-height: 1.6;">
+                        ╔══════════════════════════════════════════════════════════════════════════╗<br>
+                        ║ &nbsp;<strong>REMOTE TERMINAL EXECUTION CONSOLE & LOGS</strong> &nbsp;                     ║<br>
+                        ║ &nbsp;Jalankan perintah shell/CLI langsung di tempat host bot running.  ║<br>
+                        ╚══════════════════════════════════════════════════════════════════════════╝<br>
+                        <span style="color: #888;">Contoh perintah: <code>npm i axios</code>, <code>ls -la</code>, <code>git pull</code>, <code>node -v</code>, <code>npx pm2 status</code></span>
+                    </div>
+                    <div id="cmd-log-container"></div>
+                </div>
+
+                <div class="terminal-input-bar" style="padding: 12px 16px; background: rgba(15, 17, 23, 0.9); border-top: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center;">
+                    <span style="color: #2ecc71; font-family: monospace; font-weight: bold; font-size: 14px;">$</span>
+                    <input type="text" id="cmd-input" placeholder="Masukkan perintah CLI (contoh: npm i axios)..." style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 14px; color: #fff; font-family: monospace; font-size: 13px; outline: none;">
+                    <button id="btn-send-cmd" class="btn-primary" style="width: auto; padding: 10px 20px; font-size: 13px;">
+                        <i class="fa-solid fa-paper-plane"></i> Jalankan
+                    </button>
                 </div>
             </div>
         </main>

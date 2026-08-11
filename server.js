@@ -6,11 +6,76 @@ const fs = require('fs');
 require('./config.js');
 
 const app = express();
-const PORT = process.env.PORT || 2555;
+const PORT = process.env.PORT || 2505;
+const { exec } = require('child_process');
 
-// Middleware to serve static files
-app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+
+// --- SYSTEM LOG CAPTURE (Real-time Logs for Owner Dashboard) ---
+const systemLogs = [];
+const MAX_LOG_ENTRIES = 500;
+const logSSEClients = [];
+let _isLogging = false;
+
+function addSystemLog(level, args) {
+    const message = args.map(a => {
+        if (typeof a === 'string') return a;
+        if (a instanceof Error) return a.stack || a.message;
+        try { return JSON.stringify(a, null, 2); } catch { return String(a); }
+    }).join(' ');
+
+    const entry = {
+        id: Date.now() + '-' + Math.floor(Math.random() * 10000),
+        timestamp: new Date().toISOString(),
+        level,
+        message
+    };
+
+    systemLogs.push(entry);
+    if (systemLogs.length > MAX_LOG_ENTRIES) systemLogs.shift();
+
+    // Broadcast to SSE clients
+    const eventData = JSON.stringify({ type: 'log', data: entry });
+    for (let i = logSSEClients.length - 1; i >= 0; i--) {
+        try {
+            logSSEClients[i].write(`data: ${eventData}\n\n`);
+        } catch (e) {
+            logSSEClients.splice(i, 1);
+        }
+    }
+}
+
+// Intercept console methods to capture all bot logs
+const _origLog = console.log.bind(console);
+const _origError = console.error.bind(console);
+const _origWarn = console.warn.bind(console);
+
+console.log = (...args) => {
+    _origLog(...args);
+    if (_isLogging) return;
+    _isLogging = true;
+    try { addSystemLog('info', args); } finally { _isLogging = false; }
+};
+console.error = (...args) => {
+    _origError(...args);
+    if (_isLogging) return;
+    _isLogging = true;
+    try { addSystemLog('error', args); } finally { _isLogging = false; }
+};
+console.warn = (...args) => {
+    _origWarn(...args);
+    if (_isLogging) return;
+    _isLogging = true;
+    try { addSystemLog('warn', args); } finally { _isLogging = false; }
+};
+
+// Capture uncaught exceptions & unhandled rejections
+process.on('uncaughtException', (err) => {
+    addSystemLog('error', [`[UncaughtException] ${err.stack || err.message || err}`]);
+});
+process.on('unhandledRejection', (reason) => {
+    addSystemLog('error', [`[UnhandledRejection] ${reason?.stack || reason?.message || reason}`]);
+});
 
 // Helper to load channels database dynamically
 function getChannels() {
@@ -180,6 +245,123 @@ app.get('/api/plugins/errors', (req, res) => {
     res.json(global.pluginErrors || {});
 });
 
+// System Logs Endpoints
+app.get('/api/plugins/syslog-stream', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.write(': connected\n\n');
+
+    res.write(`data: ${JSON.stringify({ type: 'history', data: systemLogs })}\n\n`);
+    logSSEClients.push(res);
+
+    req.on('close', () => {
+        const idx = logSSEClients.indexOf(res);
+        if (idx > -1) logSSEClients.splice(idx, 1);
+    });
+});
+
+app.get('/api/plugins/syslog-list', (req, res) => {
+    const level = req.query.level;
+    const limit = parseInt(req.query.limit) || 200;
+    let filteredLogs = [...systemLogs];
+    if (level && ['info', 'warn', 'error'].includes(level)) {
+        filteredLogs = filteredLogs.filter(l => l.level === level);
+    }
+    res.json({ success: true, count: filteredLogs.length, logs: filteredLogs.slice(-limit) });
+});
+
+app.post('/api/plugins/syslog-clear', (req, res) => {
+    systemLogs.length = 0;
+    const eventData = JSON.stringify({ type: 'clear' });
+    logSSEClients.forEach(client => {
+        try { client.write(`data: ${eventData}\n\n`); } catch {}
+    });
+    res.json({ success: true, message: 'Semua log berhasil dihapus.' });
+});
+
+// --- TERMINAL & BOT RESTART CONTROL ENDPOINTS ---
+function detectBotRunner() {
+    return new Promise((resolve) => {
+        exec('npx pm2 jlist', (err, stdout) => {
+            if (!err && stdout) {
+                try {
+                    const list = JSON.parse(stdout);
+                    const mainProc = list.find(p => p.name === 'main' || (p.pm2_env && p.pm2_env.pm_exec_path && p.pm2_env.pm_exec_path.includes('main.js')));
+                    if (mainProc) {
+                        return resolve({
+                            type: 'pm2',
+                            id: mainProc.pm_id,
+                            name: mainProc.name,
+                            status: mainProc.pm2_env?.status || 'unknown',
+                            uptime: mainProc.pm2_env?.pm_uptime || 0,
+                            restarts: mainProc.pm2_env?.restart_time || 0
+                        });
+                    }
+                } catch (e) {}
+            }
+            return resolve({
+                type: 'manual',
+                name: 'npm start / node main.js',
+                status: 'online'
+            });
+        });
+    });
+}
+
+app.get('/api/plugins/terminal-info', (req, res) => {
+    detectBotRunner().then(info => {
+        res.json({ success: true, info });
+    });
+});
+
+app.post('/api/plugins/terminal-restart', (req, res) => {
+    detectBotRunner().then(info => {
+        if (info.type === 'pm2') {
+            const pmId = info.id;
+            exec(`npx pm2 restart ${pmId}`, (err, stdout, stderr) => {
+                if (err) {
+                    return res.status(500).json({ success: false, error: stderr || err.message });
+                }
+                res.json({ success: true, message: `Bot berhasil direstart via PM2 (ID ${pmId})!`, info });
+            });
+        } else {
+            res.json({ success: true, message: `Instruksi restart dikirim. Bot berjalan secara manual (npm start).`, info });
+            setTimeout(() => {
+                process.exit(0);
+            }, 1000);
+        }
+    });
+});
+
+app.post('/api/plugins/terminal-exec', (req, res) => {
+    const { command } = req.body;
+    if (!command || typeof command !== 'string') {
+        return res.status(400).json({ success: false, error: 'Perintah terminal wajib diisi!' });
+    }
+
+    const trimmedCmd = command.trim();
+    console.log(`[TERMINAL EXEC] Owner menjalankan: ${trimmedCmd}`);
+
+    exec(trimmedCmd, { cwd: __dirname, timeout: 60000, maxBuffer: 1024 * 1024 * 5 }, (err, stdout, stderr) => {
+        const output = (stdout || '') + (stderr ? `\n[STDERR]\n${stderr}` : '');
+        if (err && !stdout && !stderr) {
+            return res.json({
+                success: false,
+                command: trimmedCmd,
+                error: err.message,
+                output: err.message
+            });
+        }
+        res.json({
+            success: !err,
+            command: trimmedCmd,
+            output: output || '(Perintah selesai tanpa output teks)',
+            exitCode: err ? (err.code || 1) : 0
+        });
+    });
+});
+
 app.get('/api/plugins/code/:filename', (req, res) => {
     const filename = req.params.filename;
     try {
@@ -191,6 +373,8 @@ app.get('/api/plugins/code/:filename', (req, res) => {
         res.status(404).json({ success: false, error: e.message });
     }
 });
+
+
 
 app.post('/api/plugins/code/:filename', (req, res) => {
     const filename = req.params.filename;
@@ -339,6 +523,19 @@ app.post('/api/chat/message', (req, res) => {
     res.json({ success: true, message: msgObj });
 });
 
+
+
+
+
+// Root route: redirect to dashboard (with channel query fallback)
+app.get('/', (req, res) => {
+    if (req.query.channel) {
+        const channelId = req.query.channel.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return res.redirect(`/watch/${channelId}`);
+    }
+    return res.redirect('/dashboard');
+});
+
 // Owner Monitoring Dashboard route
 app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
@@ -354,14 +551,8 @@ app.get('/watch/:channel', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Redirect old query format (?channel=transtv) to clean path route (/watch/transtv)
-app.get('/', (req, res, next) => {
-    if (req.query.channel) {
-        const channelId = req.query.channel.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return res.redirect(`/watch/${channelId}`);
-    }
-    next();
-});
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Start the server
 const server = app.listen(PORT, () => {

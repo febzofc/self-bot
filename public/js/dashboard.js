@@ -49,6 +49,40 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentFilter = 'all';
     let searchQuery = '';
 
+    // --- LOG VIEWER STATE ---
+    const logsView = document.getElementById('logs-view');
+    const logsTerminal = document.getElementById('logs-terminal');
+    const logsEmptyState = document.getElementById('logs-empty-state');
+    const logConnDot = document.getElementById('log-conn-dot');
+    const logConnText = document.getElementById('log-conn-text');
+    const logCountBadge = document.getElementById('log-count-badge');
+    const logTotalCount = document.getElementById('log-total-count');
+    const logFilteredCount = document.getElementById('log-filtered-count');
+    const btnClearLogs = document.getElementById('btn-clear-logs');
+    const btnScrollBottom = document.getElementById('btn-scroll-bottom');
+    const logFilterButtons = document.querySelectorAll('.log-filter-btn[data-level]');
+    const dashTabs = document.querySelectorAll('.dash-tab[data-tab]');
+    const dashboardWorkspace = document.querySelector('.dashboard-workspace');
+
+    // --- TERMINAL & RUNNER CONTROL ELEMENTS ---
+    const terminalView = document.getElementById('terminal-view');
+    const runnerInfoBadge = document.getElementById('runner-info-badge');
+    const btnRestartBot = document.getElementById('btn-restart-bot');
+    const restartBotLabel = document.getElementById('restart-bot-label');
+    const cmdInput = document.getElementById('cmd-input');
+    const btnSendCmd = document.getElementById('btn-send-cmd');
+    const cmdLogContainer = document.getElementById('cmd-log-container');
+    const btnClearTerminal = document.getElementById('btn-clear-terminal');
+    const cmdTerminalOutput = document.getElementById('cmd-terminal-output');
+
+    let logEntries = [];
+    let logLevelFilter = 'all';
+    let logEventSource = null;
+    let logAutoScroll = true;
+    let currentTab = 'plugins';
+    let unseenLogCount = 0;
+    let currentRunnerInfo = null;
+
     // Starter Template Code for New Plugin
     const STARTER_PLUGIN_TEMPLATE = `const { fetchJson } = require('../lib/fungsi.js');
 
@@ -145,6 +179,7 @@ module.exports = {
             loginModalOverlay.style.setProperty('display', 'none', 'important');
         }
         if (btnLogoutOwner) btnLogoutOwner.style.display = 'inline-flex';
+        connectLogStream();
     }
 
     // Check Auth State on Page Load
@@ -551,6 +586,361 @@ module.exports = {
             showToast(e.message || 'Terjadi kesalahan saat membuat plugin.');
         }
     });
+
+    // --- TAB NAVIGATION ---
+    dashTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = tab.dataset.tab;
+            if (tabName === currentTab) return;
+            currentTab = tabName;
+
+            dashTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            if (tabName === 'plugins') {
+                if (dashboardWorkspace) dashboardWorkspace.classList.remove('hidden-view');
+                if (logsView) logsView.classList.remove('active-view');
+                if (terminalView) terminalView.classList.remove('active-view');
+            } else if (tabName === 'logs') {
+                if (dashboardWorkspace) dashboardWorkspace.classList.add('hidden-view');
+                if (terminalView) terminalView.classList.remove('active-view');
+                if (logsView) logsView.classList.add('active-view');
+                unseenLogCount = 0;
+                updateLogBadge();
+                scrollLogsToBottom();
+            } else if (tabName === 'terminal') {
+                if (dashboardWorkspace) dashboardWorkspace.classList.add('hidden-view');
+                if (logsView) logsView.classList.remove('active-view');
+                if (terminalView) terminalView.classList.add('active-view');
+                fetchRunnerInfo();
+            }
+        });
+    });
+
+    // --- SYSTEM LOG VIEWER ---
+    function formatLogTime(isoStr) {
+        try {
+            const d = new Date(isoStr);
+            return d.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        } catch {
+            return '--:--:--';
+        }
+    }
+
+    function createLogEntryEl(entry) {
+        const div = document.createElement('div');
+        div.className = `log-entry ${entry.level}-entry`;
+        div.dataset.level = entry.level;
+        div.dataset.id = entry.id;
+
+        const escapedMsg = entry.message
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        div.innerHTML = `
+            <span class="log-time">${formatLogTime(entry.timestamp)}</span>
+            <span class="log-level-tag ${entry.level}">${entry.level}</span>
+            <span class="log-msg">${escapedMsg}</span>
+        `;
+        return div;
+    }
+
+    function renderAllLogs() {
+        // Clear terminal (keep empty state)
+        const existingEntries = logsTerminal.querySelectorAll('.log-entry');
+        existingEntries.forEach(el => el.remove());
+
+        const filtered = logLevelFilter === 'all'
+            ? logEntries
+            : logEntries.filter(e => e.level === logLevelFilter);
+
+        if (filtered.length === 0) {
+            if (logsEmptyState) logsEmptyState.style.display = 'flex';
+        } else {
+            if (logsEmptyState) logsEmptyState.style.display = 'none';
+            const frag = document.createDocumentFragment();
+            filtered.forEach(entry => frag.appendChild(createLogEntryEl(entry)));
+            logsTerminal.appendChild(frag);
+        }
+
+        updateLogCounts(filtered.length);
+        if (logAutoScroll) scrollLogsToBottom();
+    }
+
+    function appendLogEntry(entry) {
+        if (logsEmptyState) logsEmptyState.style.display = 'none';
+
+        const shouldShow = logLevelFilter === 'all' || entry.level === logLevelFilter;
+        if (shouldShow) {
+            logsTerminal.appendChild(createLogEntryEl(entry));
+        }
+
+        updateLogCounts();
+
+        if (logAutoScroll) scrollLogsToBottom();
+
+        // Update unseen badge if not on logs tab
+        if (currentTab !== 'logs') {
+            unseenLogCount++;
+            updateLogBadge();
+        }
+    }
+
+    function scrollLogsToBottom() {
+        if (logsTerminal) {
+            logsTerminal.scrollTop = logsTerminal.scrollHeight;
+        }
+    }
+
+    function updateLogCounts(filteredLen) {
+        const total = logEntries.length;
+        if (logTotalCount) logTotalCount.textContent = `Total: ${total} log`;
+
+        if (logFilteredCount) {
+            if (logLevelFilter !== 'all') {
+                const count = filteredLen !== undefined ? filteredLen : logEntries.filter(e => e.level === logLevelFilter).length;
+                logFilteredCount.textContent = `| Filter: ${count} ditampilkan`;
+            } else {
+                logFilteredCount.textContent = '';
+            }
+        }
+    }
+
+    function updateLogBadge() {
+        if (!logCountBadge) return;
+        if (unseenLogCount > 0) {
+            logCountBadge.textContent = unseenLogCount > 99 ? '99+' : unseenLogCount;
+            logCountBadge.style.display = 'inline-block';
+        } else {
+            logCountBadge.style.display = 'none';
+        }
+    }
+
+    function setLogConnectionStatus(connected) {
+        if (logConnDot) logConnDot.classList.toggle('connected', connected);
+        if (logConnText) logConnText.textContent = connected ? 'Terhubung' : 'Terputus';
+    }
+
+    // SSE Log Stream Connection
+    function connectLogStream() {
+        if (logEventSource) {
+            logEventSource.close();
+            logEventSource = null;
+        }
+
+        const token = getOwnerToken();
+        if (!token) return;
+
+        const url = `/api/plugins/syslog-stream?token=${encodeURIComponent(token)}`;
+        logEventSource = new EventSource(url);
+
+        logEventSource.onopen = () => {
+            setLogConnectionStatus(true);
+        };
+
+        logEventSource.onmessage = (event) => {
+            try {
+                const parsed = JSON.parse(event.data);
+
+                if (parsed.type === 'history') {
+                    logEntries = parsed.data || [];
+                    renderAllLogs();
+                } else if (parsed.type === 'log') {
+                    logEntries.push(parsed.data);
+                    // Keep client-side buffer manageable
+                    if (logEntries.length > 600) {
+                        logEntries = logEntries.slice(-500);
+                        renderAllLogs();
+                    } else {
+                        appendLogEntry(parsed.data);
+                    }
+                } else if (parsed.type === 'clear') {
+                    logEntries = [];
+                    renderAllLogs();
+                    showToast('Log sistem telah dihapus.');
+                }
+            } catch (e) {
+                // Ignore parse errors for SSE comments
+            }
+        };
+
+        logEventSource.onerror = () => {
+            setLogConnectionStatus(false);
+            logEventSource.close();
+            logEventSource = null;
+            // Auto-reconnect after 5 seconds
+            setTimeout(() => {
+                const tk = getOwnerToken();
+                if (tk) connectLogStream();
+            }, 5000);
+        };
+    }
+
+    // Log auto-scroll detection
+    if (logsTerminal) {
+        logsTerminal.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = logsTerminal;
+            logAutoScroll = (scrollHeight - scrollTop - clientHeight) < 40;
+        });
+    }
+
+    // Log filter buttons
+    logFilterButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            logFilterButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            logLevelFilter = btn.dataset.level;
+            renderAllLogs();
+        });
+    });
+
+    // Clear logs button
+    if (btnClearLogs) {
+        btnClearLogs.addEventListener('click', async () => {
+            try {
+                await fetchWithAuth('/api/plugins/syslog-clear', { method: 'POST' });
+            } catch (e) {
+                showToast('Gagal menghapus log: ' + e.message);
+            }
+        });
+    }
+
+    // Scroll to bottom button
+    if (btnScrollBottom) {
+        btnScrollBottom.addEventListener('click', () => {
+            logAutoScroll = true;
+            scrollLogsToBottom();
+        });
+    }
+
+    // --- RUNNER DETECTION & RESTART BOT CONTROL ---
+    async function fetchRunnerInfo() {
+        try {
+            const res = await fetchWithAuth('/api/plugins/terminal-info');
+            const data = await res.json();
+            if (data.success && data.info) {
+                currentRunnerInfo = data.info;
+                if (runnerInfoBadge) {
+                    if (data.info.type === 'pm2') {
+                        runnerInfoBadge.innerHTML = `<i class="fa-solid fa-server" style="color: #2ecc71;"></i> Mode: <strong>PM2 (ID ${data.info.id})</strong>`;
+                        if (restartBotLabel) restartBotLabel.textContent = `Restart PM2 (${data.info.id})`;
+                    } else {
+                        runnerInfoBadge.innerHTML = `<i class="fa-solid fa-terminal" style="color: #f1c40f;"></i> Mode: <strong>npm start / Manual</strong>`;
+                        if (restartBotLabel) restartBotLabel.textContent = 'Restart Manual';
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error fetching runner info:', e);
+        }
+    }
+
+    if (btnRestartBot) {
+        btnRestartBot.addEventListener('click', async () => {
+            const modeText = currentRunnerInfo?.type === 'pm2' ? `PM2 (ID ${currentRunnerInfo.id})` : 'Manual (npm start)';
+            if (!confirm(`Apakah Anda yakin ingin merestart server bot yang berjalan via ${modeText}?`)) return;
+
+            btnRestartBot.disabled = true;
+            btnRestartBot.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Merestart...';
+
+            try {
+                const res = await fetchWithAuth('/api/plugins/terminal-restart', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(data.message || 'Proses restart berhasil!');
+                    appendCmdOutput('SYSTEM', `[RESTART] ${data.message}`);
+                } else {
+                    showToast(`Gagal restart: ${data.error}`);
+                }
+            } catch (e) {
+                showToast('Perintah restart dikirim. Server sedang muat ulang...');
+            } finally {
+                setTimeout(() => {
+                    btnRestartBot.disabled = false;
+                    btnRestartBot.innerHTML = `<i class="fa-solid fa-rotate-right"></i> <span id="restart-bot-label">${restartBotLabel?.textContent || 'Restart Bot'}</span>`;
+                    fetchRunnerInfo();
+                }, 3000);
+            }
+        });
+    }
+
+    // --- TERMINAL COMMAND EXECUTION ---
+    function appendCmdOutput(cmd, outputText, isError = false) {
+        if (!cmdLogContainer) return;
+        const block = document.createElement('div');
+        block.style.marginBottom = '14px';
+        block.style.borderBottom = '1px dashed rgba(255,255,255,0.08)';
+        block.style.paddingBottom = '10px';
+
+        const now = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        const escapedOutput = (outputText || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        block.innerHTML = `
+            <div style="color: #3498db; font-size: 12px; margin-bottom: 4px;">
+                <span style="color: #666;">[${now}]</span> <strong>$ ${cmd}</strong>
+            </div>
+            <pre style="color: ${isError ? '#ff6b6b' : '#b8bcc8'}; font-family: inherit; font-size: 12px; white-space: pre-wrap; word-break: break-all; margin: 0; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">${escapedOutput}</pre>
+        `;
+
+        cmdLogContainer.appendChild(block);
+        if (cmdTerminalOutput) {
+            cmdTerminalOutput.scrollTop = cmdTerminalOutput.scrollHeight;
+        }
+    }
+
+    async function handleExecCommand() {
+        if (!cmdInput) return;
+        const command = cmdInput.value.trim();
+        if (!command) return;
+
+        cmdInput.value = '';
+        btnSendCmd.disabled = true;
+        btnSendCmd.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
+
+        try {
+            const res = await fetchWithAuth('/api/plugins/terminal-exec', {
+                method: 'POST',
+                body: JSON.stringify({ command })
+            });
+            const data = await res.json();
+            if (data.success) {
+                appendCmdOutput(command, data.output);
+                showToast(`Perintah '${command}' selesai!`);
+            } else {
+                appendCmdOutput(command, data.output || data.error, true);
+                showToast(`Perintah '${command}' keluar dengan status error!`);
+            }
+        } catch (e) {
+            appendCmdOutput(command, `Error koneksi: ${e.message}`, true);
+            showToast('Gagal terhubung ke terminal server.');
+        } finally {
+            btnSendCmd.disabled = false;
+            btnSendCmd.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Jalankan (Enter)';
+        }
+    }
+
+    if (btnSendCmd) btnSendCmd.addEventListener('click', handleExecCommand);
+
+    if (cmdInput) {
+        cmdInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleExecCommand();
+            }
+        });
+    }
+
+    if (btnClearTerminal) {
+        btnClearTerminal.addEventListener('click', () => {
+            if (cmdLogContainer) cmdLogContainer.innerHTML = '';
+            showToast('Layar terminal dibersihkan.');
+        });
+    }
 
     // Filter Buttons
     filterButtons.forEach(btn => {

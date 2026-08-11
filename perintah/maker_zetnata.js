@@ -3,8 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = {
-    CmD: ['zetnata'],
-    aliases: ['zetnata', 'tourlzet', 'zetcloud', 'cloudzet'],
+    CmD: ['tourl'],
+    aliases: ['tourl','cloud','upload','zetnata', 'tourlzet', 'zetcloud', 'cloudzet'],
     categori: 'maker',
     exec: async (m, { bob, quoted, mime, prefix, command }) => {
         if (!quoted || !mime) {

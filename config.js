@@ -13,7 +13,12 @@ global.ownerPassword = 'owner123'
 global.pairing = '085822578327'
 global.author = 'WhatsApp Bot'
 global.prefa = ['#','!','.','❗']
-global.streamingUrl = 'http://localhost:3000'
+global.streamingUrl = 'http://localhost:2555'
+
+// --- 9ROUTERS & GEMINI AI CONFIGURATION ---
+global.geminiApiKey = process.env.GEMINI_API_KEY || '';
+global.nineRoutersUrl = process.env.NINEROUTERS_URL || 'http://localhost:20128/v1'; // Endpoint 9routers
+
 global.mess = {
     success: '✓ Success',
     admin: 'Fitur Khusus Admin Group!',
