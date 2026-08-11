@@ -39,6 +39,7 @@ global.loadDatabase = async function loadDatabase() {
         phising: {},
         minecraft_coords: {},
         minecraft_sethome: {},
+        minecraft_bansos: {},
         ...(global.db.data || {})
     }
     global.db.chain = _.chain(global.db.data)

@@ -114,8 +114,45 @@ function formatBytes(bytes) {
     return Math.round(mb) + ' MB';
 }
 
-// Memori Penyimpanan Claim Bansos
-const claimedPlayers = new Set();
+// Helper Database Claim Bansos Minecraft
+function getBansosData() {
+    try {
+        if (global.db && global.db.data) {
+            if (!global.db.data.minecraft_bansos) {
+                global.db.data.minecraft_bansos = {};
+            }
+            return global.db.data.minecraft_bansos;
+        }
+        if (!fs.existsSync(dbPath)) return {};
+        const raw = fs.readFileSync(dbPath, 'utf8');
+        const db = JSON.parse(raw);
+        return db.minecraft_bansos || {};
+    } catch (e) {
+        console.error('Error reading minecraft_bansos:', e);
+        return {};
+    }
+}
+
+function saveBansosData(bansosData) {
+    try {
+        if (global.db && global.db.data) {
+            global.db.data.minecraft_bansos = bansosData;
+            if (typeof global.db.write === 'function') {
+                global.db.write().catch(err => console.error('Error saving global.db.data.minecraft_bansos:', err));
+            }
+        }
+        const srcDir = path.join(__dirname, '../src');
+        if (!fs.existsSync(srcDir)) fs.mkdirSync(srcDir, { recursive: true });
+        let db = {};
+        if (fs.existsSync(dbPath)) {
+            try { db = JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch (e) {}
+        }
+        db.minecraft_bansos = bansosData;
+        fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Error writing minecraft_bansos:', e);
+    }
+}
 
 module.exports = {
     name: 'minecraft',
@@ -295,9 +332,22 @@ module.exports = {
                 }
 
                 const pName = getPlayerName(player);
+                const pKey = pName.toLowerCase();
+                const bansosDB = getBansosData();
+                const now = Date.now();
+                const COOLDOWN_24H = 24 * 60 * 60 * 1000;
 
-                if (claimedPlayers.has(pName.toLowerCase())) {
-                    return m.reply(`⚠️ Player *${pName}* sudah pernah mengambil Paket Bansos Starter Kit! (Hanya bisa claim 1x).`);
+                const userRecord = bansosDB[pKey];
+                if (userRecord && userRecord.lastClaim) {
+                    const timePassed = now - userRecord.lastClaim;
+                    if (timePassed < COOLDOWN_24H) {
+                        const timeLeft = COOLDOWN_24H - timePassed;
+                        const totalSec = Math.floor(timeLeft / 1000);
+                        const hours = Math.floor(totalSec / 3600);
+                        const minutes = Math.floor((totalSec % 3600) / 60);
+                        const seconds = totalSec % 60;
+                        return m.reply(`⚠️ Player *${pName}* sudah mengambil Paket Bansos hari ini!\n\n⏳ Silakan tunggu *${hours} Jam ${minutes} Menit ${seconds} Detik* lagi.`);
+                    }
                 }
 
                 const itemsToGive = [
@@ -320,7 +370,16 @@ module.exports = {
                     await api.post('/server/exec', params);
                 }
 
-                claimedPlayers.add(pName.toLowerCase());
+                // Simpan klaim bansos ke database persistent (LowDB / database.json)
+                const totalCount = (bansosDB[pKey]?.count || 0) + 1;
+                bansosDB[pKey] = {
+                    playerName: pName,
+                    lastClaim: now,
+                    claimedAt: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }),
+                    claimedBySender: m.sender,
+                    count: totalCount
+                };
+                saveBansosData(bansosDB);
 
                 const msgParam = new URLSearchParams();
                 msgParam.append('command', `say 🎁 [BANSOS CLAIM] Selamat! Player ${pName} telah mengambil Paket Starter Kit Bansos via WhatsApp!`);

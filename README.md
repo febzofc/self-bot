@@ -1,65 +1,68 @@
 # Cimo Self-Bot 🤖 (v1.2.0)
 
-Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk penggunaan pribadi (self-bot) dan grup chat. Bot ini menggunakan arsitektur modular berbasis plugin yang mempermudah penambahan fitur baru, serta dilengkapi dengan dashboard web monitoring, Web Player Streaming Anime, dan Web TV.
+Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk penggunaan pribadi (self-bot) dan grup chat. Bot ini menggunakan arsitektur modular berbasis plugin yang mempermudah penambahan fitur baru, serta dilengkapi dengan dashboard web monitoring, Web Player Streaming Anime, Web TV, dan Integrasi Server Minecraft ServerTap.io.
 
 ---
 
 ## 🚀 Fitur Unggulan Versi Terbaru (v1.2.0)
 
-### 1. ⛩️ 🌸 Otakudesu Anime Hub & Web Player Streaming TV
-Sistem pencarian anime interaktif bersesi 3 langkah dengan tampilan jejepangan aesthetic:
+### 1. 🎮 Integrasi Server Minecraft ServerTap.io & Sistem Bansos Persistent
+- **Status & Monitoring Server (`.mcstatus` / `.mcplayers`):** Cek TPS, memori RAM, jumlah pemain online, serta detail individual (HP, koordinat, level, & mode game).
+- **Claim Bansos Starter Kit Persistent (`.mcclaimbansos` / `.mcbansos`):**
+  - Pemain online di Minecraft dapat mengklaim Paket Bansos Starter Kit (Full Iron Armor, Iron Tools, 64 Roti, & Kasur).
+  - **Penyimpanan Terintegrasi LowDB (`global.db.data.minecraft_bansos`):** Riwayat klaim tersimpan secara permanen di database JSON sehingga tidak hilang atau ter-reset saat bot di-restart.
+  - **Cooldown 24 Jam:** Proteksi jeda waktu klaim 24 jam dengan penghitung waktu mundur (*countdown timer*) yang akurat.
+- **Manajemen Koordinat & Sethome (`.mcsave`, `.mccoords`, `.sethome`, `.mctp`):**
+  - Menyimpan koordinat lokasi penting & titik home player langsung ke database persistent `global.db.data`.
+  - Tenteleportasi pemain ke lokasi tersimpan atau ke tempat pemain lain.
+
+### 2. 📊 Inspeksi Grup WhatsApp (`.inspect` / `.inspectgroup`)
+- Inspeksi detail grup WhatsApp menggunakan link undangan (`chat.whatsapp.com/code`), JID grup, atau langsung di dalam grup.
+- Menampilkan: Pembuat grup, tanggal pembuatan, ephemeral duration, daftar admin, approval mode, presensi online realtime anggota, serta foto profil grup.
+
+### 3. ⛩️ 🌸 Otakudesu Anime Hub & Web Player Streaming TV
 - **Sesi Interaktif (3 Steps):**
-  - `Step 1`: Pencarian anime (`.otakusearch <judul>`) dengan memilih nomor `#1` s/d `#10`.
-  - `Step 2`: Detail anime, sinopsis, dan pilihan episode / **📦 [BATCH ALL EPISODE]**.
-  - `Step 3`: Aksi episode (📥 Download semua kualitas 360p-1080p / 🎬 Streaming Player).
-  - Navigasi mudah: Balas `#back` untuk kembali, `#exit` atau `#keluar` untuk mengakhiri sesi.
-- **Web Player Streaming TV (`public/anime_stream.html`):** Pemutar video anime web responsive dengan tampilan cyberpunk-jejepangan, animasi kelopak sakura, reload player, dan salin link streaming.
-- **Fitur Lengkap Otakudesu:** Pencarian, Detail, Download Episode & Batch, Streaming Player, Jadwal Rilis Mingguan, Ongoing Anime, dan Filter Genre.
+  - `Step 1`: Pencarian anime (`.otakusearch <judul>`).
+  - `Step 2`: Detail anime, sinopsis, dan pilihan episode / BATCH.
+  - `Step 3`: Aksi episode (Download 360p-1080p / Streaming Player).
+- **Web Player Streaming TV (`public/anime_stream.html`):** Pemutar video anime web responsive.
 
-### 2. 🎮 Game Interactive Player vs Bot
-- **Tic-Tac-Toe (`.ttt` / `.tictactoe` / `.ttc`):** Game Tic-Tac-Toe Player vs Bot dengan 3 tingkat kesulitan:
-  - `Easy`: Bot bergerak acak.
-  - `Normal`: Campuran 50% Minimax & 50% acak.
-  - `Hard`: Bot menggunakan algoritma **Minimax (Tak Terkalahkan)**.
-  - Integrasi statistik kemenangan, kekalahan, dan seri yang tersimpan permanen di `src/database.json`.
-- **Gunting Batu Kertas / Suit Bot (`.suit` / `.gbk`):** Game RPS interaktif Player vs Bot.
+### 4. 🎮 Game Interactive Player vs Bot
+- **Tic-Tac-Toe (`.ttt` / `.tictactoe` / `.ttc`):** 3 tingkat kesulitan (`Easy`, `Normal`, `Hard` Minimax) dengan integrasi statistik permanent `global.db.data`.
+- **Gunting Batu Kertas / Suit Bot (`.suit` / `.gbk`):** Game RPS interaktif.
 
-### 3. 🎨 Maker & Media Downloader Plugins
-- **iPhone Quote Chat Maker (`.iqc` / `.iqcv2`):** Membuat gambar iPhone quote chat V1 (teks) & V2 (custom jam & baterai).
-- **Sticker Meme Maker (`.smeme`):** Membuat stiker meme dari gambar dengan teks atas dan bawah (auto upload & parsing `|`).
-- **Brat Generator (`.brat` / `.brat --img`):** Generator teks Brat menjadi stiker atau gambar.
-- **Instagram Downloader (`.ig` / `.igdl` / `.reel`):** Unduh media Instagram baik berupa foto (single & carousel slide) maupun video reel.
+### 5. 🎨 Maker & Media Downloader Plugins
+- **iPhone Quote Chat Maker (`.iqc` / `.iqcv2`)**
+- **Sticker Meme Maker (`.smeme`)**
+- **Brat Generator (`.brat` / `.brat --img`)**
+- **Instagram Downloader (`.ig` / `.igdl` / `.reel`)**
 
-### 4. 📺 Web Streaming TV Indonesia & Live Chat
-Nonton siaran langsung TV Indonesia (RCTI, SCTV, Trans TV, Metro TV, dll.) secara gratis dengan fitur Live Chat Nobar di port `3000`.
-
-### 5. 🧩 Web Dashboard Plugin Monitor (Owner Console)
-Dashboard admin web khusus pemilik untuk memantau status plugin, mengedit kode plugin secara live, dan hot-reload plugin tanpa restart server.
-
-### 6. 🖼️ ImageMagick Welcome & Goodbye Card System
-Sistem ucapan selamat datang (Welcome) dan perpisahan (Goodbye) otomatis untuk grup WhatsApp:
-- **Kartu Gambar Custom HD:** Menggunakan ImageMagick `convert` untuk merender foto profil member, background aesthetic, nama grup, waktu, dan nomor telepon member.
-- **Normal Image & @Mention Tag:** Pesan dikirim sebagai gambar biasa lengkap dengan caption kata sambutan/perpisahan dan notifikasi tag `@mention` user.
-- **Auto Fallback Profile Picture:** Apabila foto profil user disembunyikan/kosong/privat, otomatis mengalihkan ke `lib/bob.jpg` sebagai avatar pengganti.
-- **Tahan Error (Robust Handling):** Mampu menangani `string` maupun `object` participant JID dari Baileys secara aman.
+### 6. 📈 System Performance Statistics (`.stats` / `.ping`)
+- Menampilkan pemakaian CPU, penggunaan RAM, sisa penyimpanan disk, uptime sistem, dan statistik pesan bot secara realtime.
 
 ---
 
-## 📋 Ringkasan Perintah Baru
+## 📋 Ringkasan Perintah Utama
 
 | Perintah | Deskripsi |
 | --- | --- |
+| `.mcstatus` / `.mcinfo` | Menampilkan status TPS, RAM, & Uptime Server Minecraft |
+| `.mcplayers` / `.mclist` | Menampilkan daftar pemain online di server Minecraft |
+| `.mcclaimbansos <player>` | Klaim Paket Bansos Starter Kit Minecraft (Cooldown 24 Jam, Persistent DB) |
+| `.mcsave <x> <y> <z> <nama>` | Menyimpan koordinat lokasi penting ke database |
+| `.mccoords` / `.mclistc` | Menampilkan daftar koordinat lokasi tersimpan |
+| `.sethome <player> <nama>` | Menyimpan lokasi rumah pemain di Minecraft |
+| `.mctp <player> <target>` | Teleportasi pemain di dalam server Minecraft |
+| `.inspect` [link/JID] | Inspeksi & analisis informasi grup WhatsApp |
+| `.stats` / `.ping` | Menampilkan statistik performa sistem & server bot |
 | `.otakusearch <judul>` | Memulai sesi pencarian anime Otakudesu |
-| `.otakujadwal` | Melihat jadwal rilis anime mingguan |
-| `.otakuongoing` | Melihat daftar anime ongoing terbaru |
-| `.otakugenre [slug]` | Melihat daftar genre atau anime per genre |
 | `.ttt <easy\|normal\|hard>` | Memulai game Tic-Tac-Toe vs Bot |
 | `.suit <batu\|gunting\|kertas>` | Memainkan game Gunting Batu Kertas vs Bot |
-| `.iqc <teks>` / `.iqcv2 <teks \| jam \| batre>` | Generator iPhone Quote Chat |
-| `.smeme <teks_atas \| teks_bawah>` | Generator Sticker Meme dari gambar |
-| `.brat <teks>` / `.brat --img <teks>` | Generator stiker/gambar Brat |
+| `.iqc <teks>` | Generator iPhone Quote Chat |
+| `.smeme <teks_atas \| teks_bawah>` | Generator Sticker Meme |
+| `.brat <teks>` | Generator stiker/gambar Brat |
 | `.ig <link instagram>` | Downloader foto & video Instagram |
-| `.menu` / `.help` | Menampilkan menu utama dengan mention user JID |
+| `.menu` / `.help` | Menampilkan menu utama |
 
 ---
 
@@ -69,8 +72,10 @@ Sistem ucapan selamat datang (Welcome) dan perpisahan (Goodbye) otomatis untuk g
    - Node.js versi >= 16
    - **FFmpeg & ImageMagick** (Wajib untuk stiker, konversi media & kartu ucapan grup)
      ```bash
-     # Di Termux:
+     # Di Termux / Ubuntu:
      pkg install ffmpeg imagemagick -y
+     # atau
+     sudo apt update && sudo apt install ffmpeg imagemagick -y
      ```
 
 2. **Clone Repository:**
@@ -87,6 +92,8 @@ Sistem ucapan selamat datang (Welcome) dan perpisahan (Goodbye) otomatis untuk g
 4. **Jalankan Bot:**
    ```bash
    npm start
+   # atau via PM2:
+   pm2 start main.js --name "self-bot"
    ```
 
 ---
@@ -96,7 +103,7 @@ Sistem ucapan selamat datang (Welcome) dan perpisahan (Goodbye) otomatis untuk g
 ```bash
 git pull origin main
 npm install
-npm start
+pm2 restart self-bot
 ```
 
 ---
