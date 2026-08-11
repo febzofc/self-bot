@@ -21,66 +21,80 @@ const dbPath = path.join(__dirname, '../src/database.json');
 // Helper Database Koordinat Minecraft
 function getSavedCoords() {
     try {
-        if (!fs.existsSync(dbPath)) {
-            return {};
+        if (global.db && global.db.data) {
+            if (!global.db.data.minecraft_coords) {
+                global.db.data.minecraft_coords = {};
+            }
+            return global.db.data.minecraft_coords;
         }
+        if (!fs.existsSync(dbPath)) return {};
         const raw = fs.readFileSync(dbPath, 'utf8');
         const db = JSON.parse(raw);
         return db.minecraft_coords || {};
     } catch (e) {
-        console.error('Error reading minecraft_coords from database.json:', e);
+        console.error('Error reading minecraft_coords:', e);
         return {};
     }
 }
 
 function saveCoordsDB(coordsData) {
     try {
+        if (global.db && global.db.data) {
+            global.db.data.minecraft_coords = coordsData;
+            if (typeof global.db.write === 'function') {
+                global.db.write().catch(err => console.error('Error saving global.db.data.minecraft_coords:', err));
+            }
+        }
         const srcDir = path.join(__dirname, '../src');
         if (!fs.existsSync(srcDir)) fs.mkdirSync(srcDir, { recursive: true });
-
         let db = {};
         if (fs.existsSync(dbPath)) {
-            try {
-                db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-            } catch (e) {}
+            try { db = JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch (e) {}
         }
         db.minecraft_coords = coordsData;
         fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
     } catch (e) {
-        console.error('Error writing minecraft_coords to database.json:', e);
+        console.error('Error writing minecraft_coords:', e);
     }
 }
 
 // Helper Database Sethome Claim
 function getSethomeData() {
     try {
-        if (!fs.existsSync(dbPath)) {
-            return {};
+        if (global.db && global.db.data) {
+            if (!global.db.data.minecraft_sethome) {
+                global.db.data.minecraft_sethome = {};
+            }
+            return global.db.data.minecraft_sethome;
         }
+        if (!fs.existsSync(dbPath)) return {};
         const raw = fs.readFileSync(dbPath, 'utf8');
         const db = JSON.parse(raw);
         return db.minecraft_sethome || {};
     } catch (e) {
-        console.error('Error reading minecraft_sethome from database.json:', e);
+        console.error('Error reading minecraft_sethome:', e);
         return {};
     }
 }
 
 function saveSethomeData(sethomeData) {
     try {
+        if (global.db && global.db.data) {
+            global.db.data.minecraft_sethome = sethomeData;
+            if (typeof global.db.write === 'function') {
+                global.db.write().catch(err => console.error('Error saving global.db.data.minecraft_sethome:', err));
+            }
+        }
         const srcDir = path.join(__dirname, '../src');
         if (!fs.existsSync(srcDir)) fs.mkdirSync(srcDir, { recursive: true });
-
         let db = {};
         if (fs.existsSync(dbPath)) {
-            try {
-                db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-            } catch (e) {}
+            try { db = JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch (e) {}
         }
         db.minecraft_sethome = sethomeData;
         fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
     } catch (e) {
-        console.error('Error writing minecraft_sethome to database.json:', e);
+        console.error('Error writing minecraft_sethome:', e);
     }
 }
 
