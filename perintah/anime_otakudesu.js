@@ -84,12 +84,17 @@ function renderAnimeDetail(session) {
         if (detail.episode.length > 15) {
             txt += `_... dan ${detail.episode.length - 15} episode lainnya._\n`;
         }
+    } else {
+        txt += `⚠️ _Daftar episode tidak tersedia atau server Otakudesu membatasi akses (Cloudflare 403)._\n`;
+        txt += `💡 _Kamu tetap dapat mencoba streaming langsung dengan: *${global.prefa ? global.prefa[0] : '!'}otakustream <id_episode>*_\n`;
     }
     
     txt += `\n──────────────────────────\n`;
     txt += `💡 *CARA PENGGUNAAN:* \n`;
     txt += `👉 *Balas / Reply pesan ini dengan:* \n`;
-    txt += `• *#1* s/d *#${Math.min(15, detail.episode ? detail.episode.length : 0)}* ➔ Pilih Nomor Episode / Batch\n`;
+    if (detail.episode && detail.episode.length > 0) {
+        txt += `• *#1* s/d *#${Math.min(15, detail.episode.length)}* ➔ Pilih Nomor Episode / Batch\n`;
+    }
     txt += `• *#search* ➔ Kembali ke Hasil Pencarian Anime\n`;
     txt += `• *#exit* / *#keluar* ➔ Keluar dari Sesi Interaktif`;
     return txt;
@@ -139,6 +144,96 @@ function formatDownloadLinks(resDl, epTitle, epId) {
     return txt;
 }
 
+let generateWAMessageFromContent;
+async function getGenerateWAMessageFromContent() {
+    if (!generateWAMessageFromContent) {
+        try {
+            const baileys = await import('@whiskeysockets/baileys');
+            generateWAMessageFromContent = baileys.generateWAMessageFromContent;
+        } catch (e) {}
+    }
+    return generateWAMessageFromContent;
+}
+
+async function sendStreamingInteractive(bob, m, { title, bodyText, streamUrl, webPlayerUrl }) {
+    const buttons = [];
+    if (webPlayerUrl) {
+        buttons.push({
+            name: "cta_url",
+            buttonParamsJson: JSON.stringify({
+                display_text: "Nonton Web Player (In-app WebView)",
+                url: webPlayerUrl,
+                webview_interaction: true,
+            }),
+        });
+    }
+    if (streamUrl) {
+        buttons.push({
+            name: "cta_url",
+            buttonParamsJson: JSON.stringify({
+                display_text: "Buka Stream (External Browser)",
+                url: streamUrl,
+            }),
+        });
+    }
+
+    const interactiveContent = {
+        interactiveMessage: {
+            header: {
+                title: title || "Streaming Player",
+            },
+            body: {
+                text: bodyText || "Silakan pilih opsi streaming di bawah:",
+            },
+            nativeFlowMessage: {
+                buttons: buttons,
+                messageParamsJson: "{}",
+            },
+        },
+    };
+
+    const relayOptions = {
+        additionalNodes: [
+            {
+                tag: "biz",
+                attrs: {},
+                content: [
+                    {
+                        tag: "interactive",
+                        attrs: {
+                            type: "native_flow",
+                            v: "1",
+                        },
+                        content: [
+                            {
+                                tag: "native_flow",
+                                attrs: {
+                                    v: "9",
+                                    name: "mixed",
+                                },
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    };
+
+    try {
+        const genMsg = await getGenerateWAMessageFromContent();
+        if (genMsg) {
+            const waMsg = genMsg(m.chat, interactiveContent, {});
+            await bob.relayMessage(m.chat, waMsg.message, { ...relayOptions, messageId: waMsg.key.id });
+        } else {
+            await bob.relayMessage(m.chat, interactiveContent, relayOptions);
+        }
+        return true;
+    } catch (e) {
+        console.error("sendStreamingInteractive Error:", e);
+        return false;
+    }
+}
+
 function formatStreamLinks(iframeUrl, epTitle, epId) {
     const baseUrl = global.streamingUrl || 'http://localhost:3000';
     const webPlayerUrl = `${baseUrl}/anime-stream?url=${encodeURIComponent(iframeUrl)}&title=${encodeURIComponent(epTitle)}`;
@@ -153,10 +248,10 @@ function formatStreamLinks(iframeUrl, epTitle, epId) {
     txt += `${iframeUrl}\n\n`;
     txt += `──────────────────────────\n`;
     txt += `💡 *PETUNJUK:* \n`;
-    txt += `• Buka link Web Player Streaming TV di atas untuk menonton di browser dengan tampilan jejepangan.\n`;
+    txt += `• Klik tombol interaktif di bawah atau link Web Player di atas untuk menonton di browser.\n`;
     txt += `• Balas *#back* untuk kembali ke daftar episode.\n`;
     txt += `• Balas *#exit* atau *#keluar* untuk mengakhiri sesi.`;
-    return txt;
+    return { txt, webPlayerUrl };
 }
 
 module.exports = {
@@ -207,7 +302,10 @@ module.exports = {
                     const selectedAnime = session.searchResults[choiceNum - 1];
                     m.reply(`_📜 Mengambil detail anime *${selectedAnime.title}*..._`);
                     try {
-                        const detail = await otakudesu.get(selectedAnime.id);
+                        const detail = await otakudesu.get(selectedAnime.id, selectedAnime);
+                        if (!detail) {
+                            return m.reply(`❌ Gagal memuat data detail untuk *${selectedAnime.title}*. Server Otakudesu mungkin sedang offline atau terhalang proteksi.`);
+                        }
                         session.step = 'ANIME_DETAIL';
                         session.selectedAnime = detail;
 
@@ -215,7 +313,7 @@ module.exports = {
                         return sendImageOrReply(bob, m, detail.thumb, caption);
                     } catch (err) {
                         console.error('Error fetching detail in session:', err);
-                        return m.reply('❌ Gagal mengambil detail anime.');
+                        return m.reply(`❌ Gagal mengambil detail anime: ${err.message || 'Terjadi gangguan jaringan atau Cloudflare block'}`);
                     }
                 }
             }
@@ -279,8 +377,14 @@ module.exports = {
                             return m.reply('❌ Player streaming tidak ditemukan untuk episode ini.');
                         }
 
-                        const txt = formatStreamLinks(iframeUrl, session.selectedEpisode.episode, session.selectedEpisode.id);
-                        return m.reply(txt);
+                        const { txt, webPlayerUrl } = formatStreamLinks(iframeUrl, session.selectedEpisode.episode, session.selectedEpisode.id);
+                        await m.reply(txt);
+                        return await sendStreamingInteractive(bob, m, {
+                            title: `🎬 Stream: ${session.selectedEpisode.episode}`,
+                            bodyText: `Silakan klik tombol di bawah untuk menonton episode *${session.selectedEpisode.episode}*.`,
+                            streamUrl: iframeUrl,
+                            webPlayerUrl: webPlayerUrl
+                        });
                     } catch (err) {
                         console.error('Error fetching stream in session:', err);
                         return m.reply('❌ Gagal mengambil link streaming.');
@@ -299,15 +403,24 @@ module.exports = {
         else if (subcmd === 'otakuongoing') { subcmd = 'ongoing'; }
         else if (subcmd === 'otakugenre') { subcmd = 'genre'; }
         else if (subcmd === 'otakudesu' || subcmd === 'otaku' || subcmd === 'anime') {
-            subcmd = args[0] ? args[0].toLowerCase() : 'help';
-            if (subcmd !== 'help') args = args.slice(1);
+            const firstArg = args[0] ? args[0].toLowerCase() : '';
+            const knownSubcmds = ['search', 'detail', 'dl', 'download', 'stream', 'schedule', 'jadwal', 'ongoing', 'genre', 'help'];
+            if (knownSubcmds.includes(firstArg)) {
+                subcmd = firstArg;
+                args = args.slice(1);
+            } else if (firstArg) {
+                // Pengguna mengetik langsung judul: contoh "!otakudesu naruto" atau "!anime naruto"
+                subcmd = 'search';
+            } else {
+                subcmd = 'help';
+            }
         }
 
         const q = args.join(' ');
 
         // --- PENCARIAN & INSIALISASI SESI INTERAKTIF ---
         if (subcmd === 'search') {
-            if (!q) return m.reply(`❌ *Masukkan judul anime yang ingin dicari!*\n\nContoh: *${prefix}otakusearch naruto*`);
+            if (!q) return m.reply(`❌ *Masukkan judul anime yang ingin dicari!*\n\nContoh: *${prefix}otakusearch naruto* atau *${prefix}otakudesu naruto*`);
             m.reply('_🔍 Sedang mencari anime di Otakudesu..._');
             try {
                 const res = await otakudesu.search(q);
@@ -378,8 +491,14 @@ module.exports = {
                 const iframeUrl = await otakudesu.stream(q);
                 if (!iframeUrl) return m.reply('❌ Player streaming tidak ditemukan untuk episode ini.');
 
-                const txt = formatStreamLinks(iframeUrl, q, q);
-                return m.reply(txt);
+                const { txt, webPlayerUrl } = formatStreamLinks(iframeUrl, q, q);
+                await m.reply(txt);
+                return await sendStreamingInteractive(bob, m, {
+                    title: `🎬 Stream Anime: ${q}`,
+                    bodyText: `Silakan klik tombol di bawah untuk streaming anime.`,
+                    streamUrl: iframeUrl,
+                    webPlayerUrl: webPlayerUrl
+                });
             } catch (err) {
                 console.error('Otakudesu Stream Error:', err);
                 return m.reply('❌ Terjadi kesalahan saat mengambil link streaming.');

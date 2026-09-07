@@ -8,6 +8,24 @@
           "draw": 0
         }
       }
+    },
+    "62895710073737@s.whatsapp.net": {
+      "game": {
+        "ttc": {
+          "win": 0,
+          "lose": 0,
+          "draw": 0
+        }
+      }
+    },
+    "6289666444070@s.whatsapp.net": {
+      "game": {
+        "ttc": {
+          "win": 0,
+          "lose": 0,
+          "draw": 0
+        }
+      }
     }
   },
   "phising": {
@@ -31,6 +49,75 @@
       "type": "photo",
       "mode": "front",
       "url": "https://muhammadiyah.or.id"
+    }
+  },
+  "minecraft_coords": {},
+  "minecraft_sethome": {
+    ".vamses": 1
+  },
+  "minecraft_bansos": {
+    ".xiotang": {
+      "playerName": ".Xiotang",
+      "lastClaim": 1786800661304,
+      "claimedAt": "15/8/2026, 20.31.04",
+      "claimedBySender": "62895710073737@s.whatsapp.net",
+      "count": 2
+    },
+    ".itsmeryoku": {
+      "playerName": ".itsMeRyoku",
+      "lastClaim": 1786453375265,
+      "claimedAt": "11/8/2026, 20.02.58",
+      "claimedBySender": "6285849261085@s.whatsapp.net",
+      "count": 1
+    },
+    ".vamses": {
+      "playerName": ".Vamses",
+      "lastClaim": 1786806337354,
+      "claimedAt": "15/8/2026, 22.05.42",
+      "claimedBySender": "6285849261085@s.whatsapp.net",
+      "count": 3
+    },
+    ".mikuchaans": {
+      "playerName": ".MikuChaans",
+      "lastClaim": 1786459785931,
+      "claimedAt": "11/8/2026, 21.49.49",
+      "claimedBySender": "6285849261085@s.whatsapp.net",
+      "count": 1
+    },
+    ".the_god_pero": {
+      "playerName": ".the_god_pero",
+      "lastClaim": 1786621771579,
+      "claimedAt": "13/8/2026, 18.49.34",
+      "claimedBySender": "6285849261085@s.whatsapp.net",
+      "count": 1
+    },
+    ".the_god_asep": {
+      "playerName": ".the_god_ASEP",
+      "lastClaim": 1786621782438,
+      "claimedAt": "13/8/2026, 18.49.45",
+      "claimedBySender": "6285849261085@s.whatsapp.net",
+      "count": 1
+    },
+    ".rskyxzz": {
+      "playerName": ".rskyxzz",
+      "lastClaim": 1786628554661,
+      "claimedAt": "13/8/2026, 20.42.37",
+      "claimedBySender": "6285849261085@s.whatsapp.net",
+      "count": 1
+    },
+    ".udinganzzzz3637": {
+      "playerName": ".Udinganzzzz3637",
+      "lastClaim": 1786816718284,
+      "claimedAt": "16/8/2026, 00.58.41",
+      "claimedBySender": "6285849261085@s.whatsapp.net",
+      "count": 1
+    },
+    ".daymercy": {
+      "playerName": ".Daymercy",
+      "lastClaim": 1787225037425,
+      "claimedAt": "20/8/2026, 18.24.00",
+      "claimedBySender": "6285849261085@s.whatsapp.net",
+      "count": 2
     }
   },
   "game": {

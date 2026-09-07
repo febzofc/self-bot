@@ -107,6 +107,37 @@ module.exports = {
     setInterval(updateClock, 1000);
     updateClock();
 
+    // Theme Toggle Handler
+    const btnThemeToggle = document.getElementById('btn-theme-toggle');
+    const themeToggleIcon = document.getElementById('theme-toggle-icon');
+
+    function applyTheme(theme) {
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            if (themeToggleIcon) {
+                themeToggleIcon.className = 'fa-solid fa-sun';
+            }
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            if (themeToggleIcon) {
+                themeToggleIcon.className = 'fa-solid fa-moon';
+            }
+        }
+        localStorage.setItem('theme_preference', theme);
+    }
+
+    const savedTheme = localStorage.getItem('theme_preference') || 'light';
+    applyTheme(savedTheme);
+
+    if (btnThemeToggle) {
+        btnThemeToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            const currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+            const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(nextTheme);
+        });
+    }
+
     // Toast
     function showToast(message) {
         toast.textContent = message;

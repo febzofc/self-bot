@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let chatSource = null;
     let chatNickname = localStorage.getItem('ncs_chat_nickname') || '';
 
-    // --- 1. DIGITAL CLOCK ---
+    // --- 1. DIGITAL CLOCK & THEME TOGGLE ---
     function updateClock() {
         const now = new Date();
         const options = { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
@@ -58,6 +58,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     setInterval(updateClock, 1000);
     updateClock();
+
+    // Theme Toggle Handler
+    const btnThemeToggle = document.getElementById('btn-theme-toggle');
+    const themeToggleIcon = document.getElementById('theme-toggle-icon');
+
+    function applyTheme(theme) {
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            if (themeToggleIcon) {
+                themeToggleIcon.className = 'fa-solid fa-sun';
+            }
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            if (themeToggleIcon) {
+                themeToggleIcon.className = 'fa-solid fa-moon';
+            }
+        }
+        localStorage.setItem('theme_preference', theme);
+    }
+
+    const savedTheme = localStorage.getItem('theme_preference') || 'light';
+    applyTheme(savedTheme);
+
+    if (btnThemeToggle) {
+        btnThemeToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            const currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+            const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(nextTheme);
+        });
+    }
 
     // --- 2. FETCH CHANNELS DATA ---
     async function loadChannels() {

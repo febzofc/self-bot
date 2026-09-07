@@ -8,136 +8,15 @@ const axios = require('axios')
 const moment = require("moment-timezone");
 const pluginManager = require('./lib/pluginManager.js');
 
+const { exec } = require("child_process")
 const {
-    exec,
-    spawn,
-    execSync
-} = require("child_process")
-const {
-    smsg,
     runtime,
-    getTime,
-    sleep,
-    clockString,
-    fetchJson,
     getBuffer,
-    parseMention,
     getGroupAdmins
 } = require('./lib/fungsi.js')
 const { v4: uuidv4 } = require('uuid');
 const { color } = require('./lib/color.js')
-const { randomBytes, randomUUID } = require('crypto');
 
-let generateWAMessageFromContent;
-async function getGenerateWAMessageFromContent() {
-  if (!generateWAMessageFromContent) {
-    try {
-      const baileys = await import('@whiskeysockets/baileys');
-      generateWAMessageFromContent = baileys.generateWAMessageFromContent;
-    } catch (e) {}
-  }
-  return generateWAMessageFromContent;
-}
-
-let codeToTokens;
-
-const COLOR_MAP = {
-  "#CB7676": "KEYWORD",
-  "#4D9375": "KEYWORD",
-  "#BD976A": "KEYWORD",
-  "#AB5959": "KEYWORD",
-  "#80A665": "METHOD",
-  "#B8A965": "METHOD",
-  "#59C639": "METHOD",
-  "#569CD6": "METHOD",
-  "#C98A7D77": "STR",
-  "#C98A7D": "STR",
-  "#CE9178": "STR",
-  "#4C9A91": "NUMBER",
-  "#B5CEA8": "NUMBER",
-  "#758575DD": "COMMENT",
-  "#758575": "COMMENT",
-  "#6A9955": "COMMENT",
-  "#5C6370": "COMMENT"
-};
-
-function getTokenType(hexColor) {
-  if (!hexColor) return "DEFAULT";
-  const upper = hexColor.toUpperCase();
-  if (COLOR_MAP[upper]) return COLOR_MAP[upper];
-  if (COLOR_MAP[hexColor]) return COLOR_MAP[hexColor];
-  
-  if (/#(CB|BD|4D|AB)/i.test(hexColor)) return "KEYWORD";
-  if (/#(80|B8|59|56)/i.test(hexColor)) return "METHOD";
-  if (/#(C9|CE)/i.test(hexColor)) return "STR";
-  if (/#(4C|B5)/i.test(hexColor)) return "NUMBER";
-  if (/#(75|5C|6A)/i.test(hexColor)) return "COMMENT";
-  return "DEFAULT";
-}
-
-async function tokenize(code, language = "javascript", displayLabel = null) {
-  if (!codeToTokens) {
-    try {
-      const shiki = await import("shiki");
-      codeToTokens = shiki.codeToTokens;
-    } catch (e) {}
-  }
-
-  if (codeToTokens) {
-    try {
-      const tokens = (await codeToTokens(code, {
-        lang: language,
-        theme: "vitesse-dark"
-      })).tokens.map((line) => {
-        return line.map(({ content, color }) => {
-          return {
-            content,
-            type: getTokenType(color)
-          };
-        });
-      }).flatMap((value, index, original) => {
-        return index === original.length - 1
-          ? value
-          : [
-            ...value,
-            {
-              content: "\n",
-              type: "DEFAULT"
-            }
-          ]
-      });
-
-      return {
-        view_model: {
-          primitive: {
-            language: displayLabel || language,
-            code_blocks: tokens,
-            __typename: "GenAICodeUXPrimitive"
-          },
-          __typename: "GenAISingleLayoutViewModel"
-        }
-      };
-    } catch (e) {}
-  }
-
-  const simpleTokens = code.split('\n').map((line, idx, arr) => {
-    return [
-      { content: line, type: "DEFAULT" },
-      ...(idx < arr.length - 1 ? [{ content: "\n", type: "DEFAULT" }] : [])
-    ];
-  }).flat();
-
-  return {
-    view_model: {
-      primitive: {
-        language: displayLabel || language,
-        code_blocks: simpleTokens,
-        __typename: "GenAICodeUXPrimitive"
-      },
-      __typename: "GenAISingleLayoutViewModel"
-    }
-  };
-}
 
 //datase
 global.db.data = JSON.parse(fs.readFileSync('./src/database.json'));
@@ -150,9 +29,10 @@ if (global.db.data) global.db.data = {
 module.exports = async (bob, m, chatUpdate, store) => {
     try {
         var body = (m.mtype === 'conversation') ? m.message.conversation : (m.mtype == 'imageMessage') ? m.message.imageMessage.caption : (m.mtype == 'videoMessage') ? m.message.videoMessage.caption : (m.mtype == 'extendedTextMessage') ? m.message.extendedTextMessage.text : (m.mtype == 'buttonsResponseMessage') ? m.message.buttonsResponseMessage.selectedButtonId : (m.mtype == 'listResponseMessage') ? m.message.listResponseMessage.singleSelectReply.selectedRowId : (m.mtype == 'templateButtonReplyMessage') ? m.message.templateButtonReplyMessage.selectedId : (m.mtype === 'messageContextInfo') ? (m.message.buttonsResponseMessage?.selectedButtonId || m.message.listResponseMessage?.singleSelectReply.selectedRowId || m.text) : ''
+        body = typeof body === 'string' ? body : (body || '')
 
         var budy = (typeof m.text == 'string' ? m.text : '')
-        var prefixMatch = global.prefa ? global.prefa.find(p => body.startsWith(p)) : undefined
+        var prefixMatch = (global.prefa && body) ? global.prefa.find(p => body.startsWith(p)) : undefined
         var prefix = prefixMatch !== undefined ? prefixMatch : (global.prefa && global.prefa[0] !== undefined ? global.prefa[0] : '!')
         const time = moment(Date.now()).tz('Asia/Makassar').locale('id').format('DD/MM/YY HH:mm:ss z')
         const dt = moment(Date.now()).tz('Asia/Makassar').locale('id').format('a')
@@ -280,14 +160,13 @@ module.exports = async (bob, m, chatUpdate, store) => {
 
                 activePlugins.forEach(plugin => {
                     if (!plugin) return;
-                    const { CmD, categori, category, filename } = plugin;
-                    const aliasesList = CmD || plugin.aliases || [];
+                    const { CmD, categori, category, filename, name } = plugin;
+                    const aliasesList = CmD || (name ? [name] : (plugin.aliases && plugin.aliases.length ? [plugin.aliases[0]] : []));
                     if (!aliasesList || !Array.isArray(aliasesList)) return;
 
                     let cat = categori || category ? (categori || category).toString().toLowerCase().trim() : '';
                     if (!cat && filename) {
-                        // Fallback inspection based on filename prefix if category field is omitted
-                        const match = filename.match(/^(dl|game|maker|anime|search|convert)/i);
+                        const match = filename.match(/^(dl|game|maker|anime|search|convert|system)/i);
                         if (match) {
                             const prefixMap = {
                                 dl: 'downloader',
@@ -295,7 +174,8 @@ module.exports = async (bob, m, chatUpdate, store) => {
                                 maker: 'maker',
                                 anime: 'anime',
                                 search: 'search',
-                                convert: 'maker'
+                                convert: 'maker',
+                                system: 'system'
                             };
                             cat = prefixMap[match[1].toLowerCase()] || 'other';
                         } else {
@@ -309,117 +189,73 @@ module.exports = async (bob, m, chatUpdate, store) => {
                         commandsByCategory[cat] = [];
                     }
 
-                    commandsByCategory[cat].push(...aliasesList.map(cmd => `${prefix}${cmd}`));
+                    aliasesList.forEach(cmd => {
+                        const cleanCmd = cmd.replace(/^[.#]/, '');
+                        if (!commandsByCategory[cat].includes(cleanCmd)) {
+                            commandsByCategory[cat].push(cleanCmd);
+                        }
+                    });
                 });
 
                 // Built-in system & owner commands
                 const systemCommands = ['runtime', 'del', 'send', 'create_link', 'listerror', 'getcode', 'savecode', 'retryplugin'];
-                commandsByCategory['system'] = systemCommands.map(cmd => `${prefix}${cmd}`);
-
-                let headerText = `Halo *${pushname}* 👋${ucapanWaktu}\n\nActive Plugins: \`${stats.activeCount} / ${stats.totalPlugins}\`\nErrored Plugins: \`${stats.erroredCount}\`\nPrefix: \`${prefix}\``;
-
-                const sections = [
-                    {
-                        view_model: {
-                            primitive: {
-                                text: headerText,
-                                __typename: "GenAIMarkdownTextUXPrimitive"
-                            },
-                            __typename: "GenAISingleLayoutViewModel"
-                        }
+                if (!commandsByCategory['system']) {
+                    commandsByCategory['system'] = [];
+                }
+                systemCommands.forEach(cmd => {
+                    if (!commandsByCategory['system'].includes(cmd)) {
+                        commandsByCategory['system'].push(cmd);
                     }
-                ];
+                });
 
-                let fallbackCodeBlocks = '';
-
-                // Build a SEPARATE code section primitive for EACH category
-                for (const [category, commands] of Object.entries(commandsByCategory)) {
-                    const catUpper = category.toUpperCase();
-
-                    let catSnippet = '';
-                    
-                    commands.forEach(cmd => {
-                        let hashtagCmd = cmd;
-                        if (cmd.startsWith('.')) {
-                            hashtagCmd = '#' + cmd.slice(1);
-                        } else if (!cmd.startsWith('#')) {
-                            hashtagCmd = '#' + cmd;
-                        }
-                        const cleanName = cmd.replace(/^[.#]/, '');
-                        catSnippet += `${hashtagCmd}\n`;
-                    });
-
-                    catSnippet = catSnippet.trimEnd();
-
-                    // Pass custom displayLabel so the UI header displays the Category Name instead of "JAVASCRIPT"
-                    const catCodeSection = await tokenize(catSnippet, "javascript", `📁${catUpper}`);
-                    sections.push(catCodeSection);
-
-                    const hashtagList = commands.map(c => c.startsWith('.') ? '#' + c.slice(1) : (c.startsWith('#') ? c : '#' + c));
-                    fallbackCodeBlocks += `\`\`\`javascript\n/* 📂 KATEGORI MENU: ${catUpper} */\n${hashtagList.map(h => `${h} = "Active"`).join('\n')}\n\`\`\`\n\n`;
+                let totalCommands = 0;
+                for (const cmds of Object.values(commandsByCategory)) {
+                    totalCommands += cmds.length;
                 }
 
-                const messageContextInfo = {
-                    botMessageSecret: randomBytes(32),
-                    botMetadata: {
-                        messageDisclaimerText: "Self-Bot by Febriansyah"
-                    }
-                };
+                const userJid = m.sender;
+                const userNumber = userJid.split('@')[0];
+                const uptime = runtime(process.uptime());
 
-                const unified = {
-                    response_id: randomUUID(),
-                    sections: sections
-                };
+                let menuText = `Halo *@${userNumber}* 👋\n${ucapanWaktu}\n\n`;
+                menuText += `╭───「 *INFO BOT* 」\n`;
+                menuText += `│ • *Prefix :* [ ${prefix} ]\n`;
+                menuText += `│ • *Runtime :* ${uptime}\n`;
+                menuText += `│ • *Total Fitur :* ${totalCommands} Perintah\n`;
+                menuText += `│ • *Plugin Aktif :* ${stats.activeCount} / ${stats.totalPlugins}\n`;
+                menuText += `╰──────────────────\n\n`;
 
-                const richResponseMessage = {
-                    submessages: [],
-                    messageType: 1,
-                    unifiedResponse: {
-                        data: Buffer.from(JSON.stringify(unified))
-                    }
-                };
+                const categoryOrder = ['downloader', 'maker', 'game', 'minecraft', 'anime', 'search', 'group', 'tools', 'info', 'streaming', 'system', 'other'];
+                const sortedCategories = Object.keys(commandsByCategory).sort((a, b) => {
+                    const idxA = categoryOrder.indexOf(a);
+                    const idxB = categoryOrder.indexOf(b);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                    return a.localeCompare(b);
+                });
 
-                try {
-                    const genMsgFunc = await getGenerateWAMessageFromContent();
-                    if (!genMsgFunc) throw new Error('Fungsi generateWAMessageFromContent tidak tersedia');
-
-                    const waMsg = genMsgFunc(m.chat, {
-                        messageContextInfo,
-                        botForwardedMessage: {
-                            message: {
-                                richResponseMessage: {
-                                    ...richResponseMessage,
-                                    contextInfo: {
-                                        forwardingScore: 1,
-                                        isForwarded: true,
-                                        forwardedAiBotMessageInfo: {
-                                            botJid: "867051314767696@bot"
-                                        },
-                                        forwardOrigin: 4,
-                                        botMessageSharingInfo: {
-                                            botEntryPointOrigin: 2,
-                                            forwardScore: 1
-                                        },
-                                        ...(m ? {
-                                            stanzaId: m.key.id,
-                                            participant: m.participant || m.key.participant || m.key.remoteJid,
-                                            quotedMessage: m.message,
-                                            quotedType: 0
-                                        } : {})
-                                    }
-                                }
-                            }
-                        }
-                    }, {});
-
-                    await bob.relayMessage(m.chat, waMsg.message, {
-                        messageId: waMsg.key.id
+                for (const cat of sortedCategories) {
+                    const cmds = commandsByCategory[cat];
+                    if (!cmds || !cmds.length) continue;
+                    menuText += `╭───「 *${cat.toUpperCase()}* 」\n`;
+                    cmds.sort().forEach(cmd => {
+                        menuText += `│ • ${prefix}${cmd}\n`;
                     });
-                } catch (err) {
-                    console.error('Error sending rich menu:', err);
-                    let fallbackMsg = `${headerText}\n\n${fallbackCodeBlocks}`;
-                    await bob.sendMessage(m.chat, { text: fallbackMsg }, { quoted: m });
+                    menuText += `╰──────────────────\n\n`;
                 }
+
+                menuText += `╭───「 *CATATAN* 」\n`;
+                menuText += `│ Gunakan prefix *${prefix}* sebelum perintah.\n`;
+                menuText += `│ Contoh: *${prefix}menu*\n`;
+                menuText += `╰──────────────────`;
+
+                await bob.sendMessage(m.chat, {
+                    text: menuText.trim(),
+                    mentions: [userJid]
+                }, {
+                    quoted: m
+                });
             }
                 break
 

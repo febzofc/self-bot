@@ -551,6 +551,69 @@ app.get('/watch/:channel', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// API Endpoint untuk Kirim OTP via Web Post HTTP Request
+app.post('/api/send-otp', async (req, res) => {
+    try {
+        const { target, number, otp, code, secret } = req.body;
+        const recipient = target || number;
+        const otpCode = otp || code;
+        const reqSecret = secret || req.headers['x-api-secret'];
+
+        // Verifikasi secret key jika diatur pada global.otpSecret
+        if (global.otpSecret && reqSecret !== global.otpSecret) {
+            return res.status(401).json({
+                status: false,
+                message: 'Unauthorized: Secret key/API key tidak valid.'
+            });
+        }
+
+        if (!recipient || !otpCode) {
+            return res.status(400).json({
+                status: false,
+                message: 'Parameter "target" (nomor hp) dan "otp" (kode OTP) wajib diisi.'
+            });
+        }
+
+        // Format nomor HP ke standar WhatsApp JID (cth: 628xxx@s.whatsapp.net)
+        let formattedNum = String(recipient).replace(/[^0-9]/g, '');
+        if (formattedNum.startsWith('0')) {
+            formattedNum = '62' + formattedNum.slice(1);
+        }
+        if (!formattedNum.endsWith('@s.whatsapp.net')) {
+            formattedNum += '@s.whatsapp.net';
+        }
+
+        // Ambil instance WhatsApp socket (global.waSock atau global.bob)
+        const wa = global.waSock || global.bob;
+        if (!wa) {
+            return res.status(503).json({
+                status: false,
+                message: 'WhatsApp bot belum terhubung atau belum siap.'
+            });
+        }
+
+        const pesan = `*[ VERIFIKASI OTP ]*\n\nKode OTP Anda adalah: *${otpCode}*\n\n_Jangan berikan kode ini kepada siapapun. Kode berlaku singkat._`;
+
+        await wa.sendMessage(formattedNum, { text: pesan });
+
+        console.log(`[OTP SENT] Kode OTP ${otpCode} berhasil dikirim ke ${formattedNum}`);
+        return res.json({
+            status: true,
+            message: `OTP berhasil dikirim ke ${formattedNum.split('@')[0]}`,
+            target: formattedNum.split('@')[0],
+            otp: otpCode
+        });
+
+    } catch (err) {
+        console.error('[OTP ERROR]', err);
+        return res.status(500).json({
+            status: false,
+            message: 'Gagal mengirim pesan OTP',
+            error: err.message
+        });
+    }
+});
+
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
