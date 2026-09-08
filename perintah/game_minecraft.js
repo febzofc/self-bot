@@ -1,10 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 const axios = require('axios');
 
 // Konfigurasi ServerTap API Minecraft Server
-const SERVERTAP_URL = process.env.SERVERTAP_URL || 'http://82.41.42.190:8113/v1';
+const SERVERTAP_URL = process.env.SERVERTAP_URL || 'http://82.41.42.190:8122/v1';
 const SERVERTAP_KEY = process.env.SERVERTAP_KEY || 'my-server-gwh';
+
+const httpAgent = new http.Agent({ keepAlive: false });
+const httpsAgent = new https.Agent({ keepAlive: false });
 
 const api = axios.create({
     baseURL: SERVERTAP_URL,
@@ -12,8 +17,32 @@ const api = axios.create({
         'Key': SERVERTAP_KEY,
         'Content-Type': 'application/x-www-form-urlencoded'
     },
-    timeout: 10000
+    timeout: 10000,
+    httpAgent,
+    httpsAgent
 });
+
+// Interceptor untuk menangani auto-fallback & retry saat terjadi socket hang up / ECONNRESET
+api.interceptors.response.use(
+    response => response,
+    async error => {
+        const config = error.config;
+        if (!config || config._retry) {
+            return Promise.reject(error);
+        }
+        const errMsg = error.message ? error.message.toLowerCase() : '';
+        const isSocketHangUp = error.code === 'ECONNRESET' || errMsg.includes('socket hang up');
+        if (isSocketHangUp) {
+            config._retry = true;
+            // Jika sebelumnya mengarah ke port 8113, alihkan otomatis ke 8122
+            if (config.baseURL && config.baseURL.includes(':8113')) {
+                config.baseURL = config.baseURL.replace(':8113', ':8122');
+            }
+            return api(config);
+        }
+        return Promise.reject(error);
+    }
+);
 
 // Path file database JSON
 const dbPath = path.join(__dirname, '../src/database.json');
@@ -739,7 +768,15 @@ help += `• *${prefix}mcsettime <day/night/noon/midnight/ticks>* ➔ Set waktu 
 
         } catch (err) {
             console.error('Minecraft ServerTap Error:', err?.response?.data || err.message);
-            return m.reply(`❌ *Gagal Terhubung ke Minecraft Server API*\nError: ${err?.response?.data?.message || err.message}`);
+            let errMsg = err?.response?.data?.message || err.message;
+            if (err.code === 'ECONNRESET' || (err.message && err.message.toLowerCase().includes('socket hang up'))) {
+                errMsg = 'Koneksi ke ServerTap terputus (socket hang up). Pastikan port ServerTap (8122) aktif dan dapat diakses.';
+            } else if (err.code === 'ECONNREFUSED') {
+                errMsg = 'ServerTap tidak dapat dihubungi (Connection Refused). Server Minecraft mungkin sedang offline atau restart.';
+            } else if (err.code === 'ETIMEDOUT') {
+                errMsg = 'Koneksi ke ServerTap timeout. Server Minecraft sedang sibuk atau lag.';
+            }
+            return m.reply(`❌ *Gagal Terhubung ke Minecraft Server API*\nError: ${errMsg}`);
         }
     }
 };

@@ -97,6 +97,35 @@ module.exports = async (bob, m, chatUpdate, store) => {
             }
         }
 
+        // ** before hook plugins (fitur interaktif / sesi AI)
+        for (let name in plugins) {
+            let plugin = plugins[name];
+            if (!plugin || typeof plugin.before !== 'function') continue;
+            try {
+                let handled = await plugin.before(m, {
+                    bob,
+                    qmsg,
+                    budy,
+                    body,
+                    quoted,
+                    pushname,
+                    args,
+                    CmD,
+                    aliases,
+                    text,
+                    prefix,
+                    command,
+                    isCmd,
+                    mime,
+                    isCreator,
+                    isOwner: isCreator
+                });
+                if (handled) return;
+            } catch (e) {
+                console.error(`Error executing before hook in plugin ${name}:`, e);
+            }
+        }
+
         //** cmd
         const CmDPlugins = isCmd ? body.slice(prefixMatch.length).trim().split(/ +/).shift().toLowerCase() : null
 
