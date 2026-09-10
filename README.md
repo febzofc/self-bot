@@ -50,7 +50,12 @@ Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk p
 - **Sticker Meme Maker (`.smeme`)**
 - **Brat Generator (`.brat` / `.brat --img`)**
 
-### 7. 📈 System Performance Statistics (`.stats` / `.ping`)
+### 7. ⚽ Jadwal Sepak Bola & Formasi Starting XI (`.jadwalbola` / `.bola`)
+- **Jadwal & Hasil Pertandingan Realtime:** Menampilkan daftar jadwal laga bola terupdate lengkap dengan liga/kompetisi, status kick-off, jam/waktu WIB, skor terkini, dan stadion.
+- **Formasi & Susunan Pemain (Starting XI):** Dukungan sesi interaktif untuk memilih nomor pertandingan guna melihat susunan pemain (Lineup) dari kedua tim serta statistik/kejadian laga.
+- **Pencarian Tim / Liga:** Cari jadwal tim favorit secara instan (contoh: `.jadwalbola roma`, `.jadwalbola bayern`, `.jadwalbola champions`).
+
+### 8. 📈 System Performance Statistics (`.stats` / `.ping`)
 - Menampilkan pemakaian CPU, penggunaan RAM, sisa penyimpanan disk, uptime sistem, dan statistik pesan bot secara realtime.
 
 ---
@@ -59,6 +64,7 @@ Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk p
 
 | Perintah | Deskripsi |
 | --- | --- |
+| `.jadwalbola [tim/nomor]` | Jadwal sepak bola terkini, skor, & susunan pemain Starting XI interaktif |
 | `.igstalk <user/link>` | Stalker profil Instagram lengkap + foto HD & postingan terbaru |
 | `.ttstalk <user/link>` | Stalker profil TikTok lengkap via API Faa + foto profil & statistik |
 | `.mcstatus` / `.mcinfo` | Menampilkan status TPS, RAM, & Uptime Server Minecraft |
