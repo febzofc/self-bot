@@ -10,7 +10,7 @@ const fs = require('fs');
 // Other
 global.owner = ['6285849261085']
 global.ownerPassword = 'owner123'
-global.pairing = '085822578327'
+global.pairing = '6285822578327' // Gunakan kode negara (cth: 628xxx)
 global.author = 'WhatsApp Bot'
 global.prefa = ['#','!','.','❗']
 global.streamingUrl = 'http://localhost:2555'

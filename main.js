@@ -15,6 +15,7 @@ const FileType = require('file-type')
 const PhoneNumber = require('awesome-phonenumber');
 const readline = require('readline');
 const NodeCache = require('node-cache');
+const qrcode = require('qrcode-terminal');
 const yargs = require('yargs/yargs');
 const { v4: uuidv4 } = require('uuid');
 const _ = require('lodash');
@@ -105,8 +106,14 @@ const makeInMemoryStore = () => {
 
 const store = makeInMemoryStore();
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const question = (text) => new Promise((resolve) => rl.question(text, resolve));
+let rl;
+const getReadline = () => {
+    if (!rl || rl.closed) {
+        rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    }
+    return rl;
+};
+const question = (text) => new Promise((resolve) => getReadline().question(text, resolve));
 
 const startBot = async () => {
     const {
@@ -120,7 +127,8 @@ const startBot = async () => {
         proto,
         getMessage,
         fetchLatestBaileysVersion,
-        makeCacheableSignalKeyStore
+        makeCacheableSignalKeyStore,
+        Browsers
     } = await import("@whiskeysockets/baileys");
 
     const { state, saveCreds } = await useMultiFileAuthState('session');
@@ -130,8 +138,8 @@ const startBot = async () => {
     console.log('Menghubungkan ke WhatsApp...');
     console.log(`Memakai WA v${version.join('.')}, isLatest: ${isLatest}`);
 
-    let printQRInTerminal = true;
     let usePairingCode = false;
+    let pairingNumber = '';
 
     if (!state.creds.registered) {
         console.log(`\n============================================`);
@@ -140,16 +148,43 @@ const startBot = async () => {
         console.log(`2. Pairing Code (Tulis nomor telepon)`);
         console.log(`============================================`);
 
-        const choice = await question('Masukkan pilihan (1 atau 2): ');
+        const choice = (await question('Masukkan pilihan (1 atau 2): ')).trim();
 
-        if (choice === '1') {
-            printQRInTerminal = true;
-            usePairingCode = false;
-        } else if (choice === '2') {
-            printQRInTerminal = false;
+        if (choice === '2') {
             usePairingCode = true;
+            let defaultNumber = (global.pairing || '').toString().trim().replace(/[^0-9]/g, '');
+            if (defaultNumber.startsWith('0')) {
+                defaultNumber = '62' + defaultNumber.slice(1);
+            }
+
+            const promptText = defaultNumber
+                ? `Masukkan nomor WhatsApp Anda (cth: 62812xxxxxx / tekan Enter untuk ${defaultNumber}): `
+                : 'Masukkan nomor WhatsApp Anda (dengan kode negara, cth: 62812xxxxxx): ';
+
+            let inputNum = (await question(promptText)).trim();
+            if (!inputNum && defaultNumber) {
+                inputNum = defaultNumber;
+            }
+
+            let formattedNumber = inputNum.replace(/[^0-9]/g, '');
+            if (formattedNumber.startsWith('0')) {
+                formattedNumber = '62' + formattedNumber.slice(1);
+            }
+
+            while (!formattedNumber || formattedNumber.length < 9) {
+                console.log('⚠️ Nomor telepon tidak valid! Pastikan menyertakan kode negara (cth: 62812xxxxxx).');
+                inputNum = (await question('Masukkan nomor WhatsApp Anda: ')).trim();
+                formattedNumber = inputNum.replace(/[^0-9]/g, '');
+                if (formattedNumber.startsWith('0')) {
+                    formattedNumber = '62' + formattedNumber.slice(1);
+                }
+            }
+
+            pairingNumber = formattedNumber;
+            console.log(`\nNomor untuk pairing: +${pairingNumber}\n`);
         } else {
-            console.log('Pilihan tidak valid. Menggunakan QR Code secara default.');
+            usePairingCode = false;
+            console.log('\nMenggunakan metode QR Code. Menunggu kode QR muncul...\n');
         }
     }
 
@@ -157,13 +192,15 @@ const startBot = async () => {
     const bob = makeWASocket({
         version,
         logger: pino({ level: "silent" }),
-        printQRInTerminal,
+        browser: Browsers.ubuntu('Chrome'),
         auth: {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
         },
         msgRetryCounterCache,
-        syncFullHistory: true,
+        syncFullHistory: false,
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: undefined,
         generateHighQualityLinkPreview: true,
         getMessage: async key => {
             if (store) {
@@ -178,16 +215,28 @@ const startBot = async () => {
     global.waSock = bob;
     global.bob = bob;
 
-
-    if (!bob.authState.creds.registered && usePairingCode) {
-        const phoneNumber = await question('Masukkan nomor telepon Anda (dengan kode negara, cth: 62812xxxxxx):\n');
-        const formattedNumber = phoneNumber.replace(/[^0-9]/g, '');
-
-        console.log('Meminta kode pairing...');
-        const code = await bob.requestPairingCode(formattedNumber);
-        console.log(`\n============================================`);
-        console.log(`|    KODE PAIRING ANDA: ${code}    |`);
-        console.log(`============================================\n`);
+    if (!state.creds.registered && usePairingCode && pairingNumber) {
+        setTimeout(async () => {
+            try {
+                if (typeof bob.waitForSocketOpen === 'function') {
+                    await bob.waitForSocketOpen();
+                }
+                console.log(`⏳ Meminta kode pairing ke WhatsApp untuk nomor +${pairingNumber}...`);
+                let code = await bob.requestPairingCode(pairingNumber);
+                code = code?.match(/.{1,4}/g)?.join('-') || code;
+                console.log(`\n============================================`);
+                console.log(`|       KODE PAIRING ANDA: ${code}       |`);
+                console.log(`============================================\n`);
+                console.log(`👉 Langkah selanjutnya di HP:`);
+                console.log(`1. Buka aplikasi WhatsApp di HP Anda`);
+                console.log(`2. Ketuk ikon Menu (titik 3) atau Pengaturan`);
+                console.log(`3. Pilih "Perangkat tertaut" -> "Tautkan perangkat"`);
+                console.log(`4. Ketuk "Tautkan dengan nomor telepon saja" (di bagian bawah)`);
+                console.log(`5. Masukkan 8 digit kode pairing di atas: ${code}\n`);
+            } catch (err) {
+                console.error('❌ Gagal mendapatkan kode pairing:', err?.message || err);
+            }
+        }, 3000);
     }
 
     store.bind(bob.ev);
@@ -292,20 +341,22 @@ const startBot = async () => {
 
     bob.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
-        if (qr) {
-            console.log(`[QR CODE GENERATED] Harap pindai QR di terminal: ${qr}`);
+        if (qr && !usePairingCode) {
+            console.log('\n[QR CODE] Silakan pindai QR Code di bawah ini menggunakan aplikasi WhatsApp:');
+            qrcode.generate(qr, { small: true });
         }
         if (connection === 'close') {
             global.waSock = null;
-            const shouldRestart = new Boom(lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('Koneksi terputus, mencoba restart:', shouldRestart);
+            const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
+            const shouldRestart = statusCode !== DisconnectReason.loggedOut;
+            console.log('Koneksi terputus, mencoba restart:', shouldRestart, statusCode ? `(Status: ${statusCode})` : '');
             if (shouldRestart) {
                 // Berikan jeda sedikit agar proses sebelumnya benar-benar mati
                 setTimeout(() => startBot(), 3000);
             }
             else {
                 console.log('Connection closed. You are logged out.');
-                rl.close();
+                if (rl && !rl.closed) rl.close();
             }
         } else if (connection === 'open') {
             global.waSock = bob;
