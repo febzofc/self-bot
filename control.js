@@ -9,6 +9,7 @@ const moment = require("moment-timezone");
 const pluginManager = require('./lib/pluginManager.js');
 
 const { exec } = require("child_process")
+const { prepareWAMessageMedia } = require('@whiskeysockets/baileys');
 const {
     runtime,
     getBuffer,
@@ -28,7 +29,17 @@ if (global.db.data) global.db.data = {
 
 module.exports = async (bob, m, chatUpdate, store) => {
     try {
-        var body = (m.mtype === 'conversation') ? m.message.conversation : (m.mtype == 'imageMessage') ? m.message.imageMessage.caption : (m.mtype == 'videoMessage') ? m.message.videoMessage.caption : (m.mtype == 'extendedTextMessage') ? m.message.extendedTextMessage.text : (m.mtype == 'buttonsResponseMessage') ? m.message.buttonsResponseMessage.selectedButtonId : (m.mtype == 'listResponseMessage') ? m.message.listResponseMessage.singleSelectReply.selectedRowId : (m.mtype == 'templateButtonReplyMessage') ? m.message.templateButtonReplyMessage.selectedId : (m.mtype === 'messageContextInfo') ? (m.message.buttonsResponseMessage?.selectedButtonId || m.message.listResponseMessage?.singleSelectReply.selectedRowId || m.text) : ''
+        let interactiveResponseId = '';
+        if (m.mtype === 'interactiveResponseMessage' || m.msg?.nativeFlowResponseMessage) {
+            try {
+                const nativeFlow = m.msg?.nativeFlowResponseMessage || m.message?.interactiveResponseMessage?.nativeFlowResponseMessage;
+                if (nativeFlow?.paramsJson) {
+                    const parsed = JSON.parse(nativeFlow.paramsJson);
+                    interactiveResponseId = parsed.id || '';
+                }
+            } catch (e) {}
+        }
+        var body = m.body || ((m.mtype === 'conversation') ? m.message.conversation : (m.mtype == 'imageMessage') ? m.message.imageMessage.caption : (m.mtype == 'videoMessage') ? m.message.videoMessage.caption : (m.mtype == 'extendedTextMessage') ? m.message.extendedTextMessage.text : (m.mtype == 'buttonsResponseMessage') ? m.message.buttonsResponseMessage.selectedButtonId : (m.mtype == 'listResponseMessage') ? m.message.listResponseMessage.singleSelectReply.selectedRowId : (m.mtype == 'templateButtonReplyMessage') ? m.message.templateButtonReplyMessage.selectedId : (m.mtype == 'interactiveResponseMessage') ? interactiveResponseId : (m.mtype === 'messageContextInfo') ? (m.message.buttonsResponseMessage?.selectedButtonId || m.message.listResponseMessage?.singleSelectReply.selectedRowId || interactiveResponseId || m.text) : '')
         body = typeof body === 'string' ? body : (body || '')
 
         var budy = (typeof m.text == 'string' ? m.text : '')
@@ -60,18 +71,32 @@ module.exports = async (bob, m, chatUpdate, store) => {
         const isBotAdmins = m.isGroup ? groupAdmins.includes(botNumber) : false
         const isAdmins = m.isGroup ? groupAdmins.includes(m.sender) : false
 
-        bob.sendFakePreviewImg = async (txt, title_, desc, img_url) => {
+        bob.sendFakePreviewImg = async (txt, title_, desc, img_url, source_url) => {
+            let thumbBuf = Buffer.isBuffer(img_url)
+                ? img_url
+                : (typeof img_url === 'string' && fs.existsSync(img_url))
+                    ? fs.readFileSync(img_url)
+                    : await getBuffer(img_url)
+            try {
+                const sharp = require('sharp');
+                if (Buffer.isBuffer(thumbBuf) && thumbBuf.length > 0) {
+                    thumbBuf = await sharp(thumbBuf)
+                        .resize(400, 400, { fit: 'cover' })
+                        .jpeg({ quality: 80 })
+                        .toBuffer();
+                }
+            } catch (_) {}
             let send = {
                 text: txt,
-                contexInfo: {
+                contextInfo: {
                     externalAdReply: {
                         title: title_,
                         body: desc,
-                        thumbnail: await getBuffer(img_url),
-                        mediaUrl: img_url,
-                        //renderLargerThumbnail: true,
-                        //showAdAttribution: false,
-                        mediaType: 2
+                        thumbnail: thumbBuf,
+                        sourceUrl: source_url || global.sourceUrl || 'https://github.com/febzofc/self-bot',
+                        mediaUrl: source_url || global.sourceUrl || 'https://github.com/febzofc/self-bot',
+                        renderLargerThumbnail: true,
+                        mediaType: 1
                     }
                 }
             }
@@ -249,6 +274,7 @@ module.exports = async (bob, m, chatUpdate, store) => {
                 let menuText = `Halo *@${userNumber}* 👋\n${ucapanWaktu}\n\n`;
                 menuText += `╭───「 *INFO BOT* 」\n`;
                 menuText += `│ • *Prefix :* [ ${prefix} ]\n`;
+                menuText += `│ • *Versi :* v1.4.0\n`;
                 menuText += `│ • *Runtime :* ${uptime}\n`;
                 menuText += `│ • *Total Fitur :* ${totalCommands} Perintah\n`;
                 menuText += `│ • *Plugin Aktif :* ${stats.activeCount} / ${stats.totalPlugins}\n`;
@@ -279,8 +305,45 @@ module.exports = async (bob, m, chatUpdate, store) => {
                 menuText += `│ Contoh: *${prefix}menu*\n`;
                 menuText += `╰──────────────────`;
 
+                // Siapkan native linkPreview dengan prepareWAMessageMedia & waUploadToServer
+                const targetUrl = global.sourceUrl || 'https://github.com/febzofc/self-bot';
+                if (!global.keys_menu_lp_media) {
+                    try {
+                        let rawBuf = await getBuffer('https://cdn.phototourl.com/free/2026-09-10-6b2f244a-19cf-4c10-b914-526a6e1f03ef.jpg');
+                        let resMedia = await prepareWAMessageMedia(
+                            { image: rawBuf },
+                            { upload: bob.waUploadToServer, mediaTypeOverride: 'thumbnail-link' }
+                        );
+                        if (resMedia?.imageMessage) {
+                            global.keys_menu_lp_media = resMedia.imageMessage;
+                            global.keys_menu_lp_thumb = rawBuf;
+                        }
+                    } catch (e) {
+                        console.error('Error prepareWAMessageMedia link preview:', e);
+                    }
+                }
+
+                let imgMsg = global.keys_menu_lp_media;
+                let linkPreview = {
+                    'matched-text': targetUrl,
+                    title: `🤖 ${global.author || 'WhatsApp Bot'} • Dashboard Menu`,
+                    description: `⚡ ${stats.activeCount}/${stats.totalPlugins} Plugin Aktif • Runtime: ${uptime} • Prefix [ ${prefix} ]`,
+                    jpegThumbnail: imgMsg?.jpegThumbnail
+                        ? Buffer.from(imgMsg.jpegThumbnail)
+                        : global.keys_menu_lp_thumb || undefined,
+                    highQualityThumbnail: imgMsg
+                        ? {
+                            ...imgMsg,
+                            width: 1280,
+                            height: 720,
+                        }
+                        : undefined,
+                };
+
+                // Kirim menu dengan linkPreview asli WhatsApp
                 await bob.sendMessage(m.chat, {
-                    text: menuText.trim(),
+                    text: `${targetUrl}\n\n` + menuText.trim(),
+                    linkPreview,
                     mentions: [userJid]
                 }, {
                     quoted: m

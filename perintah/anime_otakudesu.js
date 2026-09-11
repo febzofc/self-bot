@@ -259,138 +259,177 @@ module.exports = {
     aliases: [
         'otakudesu', 'otaku', 'anime', 
         'otakusearch', 'otakudetail', 'otakudl', 
-        'otakustream', 'otakujadwal', 'otakuongoing', 'otakugenre',
-        '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
-        '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
-        'exit', 'keluar', 'stop', 'batal', 'dl', 'stream', 'back', 'kembali', 'nonton', 'download', 'search'
+        'otakustream', 'otakujadwal', 'otakuongoing', 'otakugenre'
     ],
     categori: 'anime',
+
+    /**
+     * Hook before: Menangani sesi interaktif Otakudesu (hanya jika user memiliki sesi aktif)
+     */
+    before: async (m, { bob, body, budy, isCmd, prefix }) => {
+        if (!m || m.isBaileys || m.fromMe) return false;
+        const sender = m.sender;
+
+        // Cek apakah ada sesi aktif untuk pengirim ini
+        if (!global.otakudesuSession || !global.otakudesuSession[sender]) return false;
+
+        // Cek timeout sesi (60 detik)
+        if (Date.now() - global.otakudesuSession[sender].timestamp > 60000) {
+            delete global.otakudesuSession[sender];
+            return false;
+        }
+
+        const text = (budy || body || '').trim();
+        if (!text) return false;
+
+        // Jika user me-reply pesan jadwal bola bot, jangan pernah di-handle oleh Otakudesu!
+        if (m.quoted && m.quoted.text && (
+            m.quoted.text.includes('JADWAL PERTANDINGAN SEPAK BOLA') ||
+            m.quoted.text.includes('DETAIL PERTANDINGAN SEPAK BOLA')
+        )) {
+            return false;
+        }
+
+        const cmd = text.toLowerCase().replace(/^[#.!❗\s]+/, '').trim();
+        const validSessionActions = [
+            'exit', 'keluar', 'stop', 'batal',
+            'dl', 'stream', 'back', 'kembali', 'nonton', 'download', 'search'
+        ];
+        const isNum = /^\d+$/.test(cmd);
+        const isValidAction = isNum || validSessionActions.includes(cmd);
+
+        // Jika bukan aksi sesi valid (misal perintah bot lain seperti .menu, .jadwalbola), abaikan
+        if (!isValidAction) return false;
+
+        const session = global.otakudesuSession[sender];
+        session.timestamp = Date.now();
+
+        // Penanganan keluar sesi (#exit / #keluar / #stop / #batal)
+        if (['exit', 'keluar', 'stop', 'batal'].includes(cmd)) {
+            delete global.otakudesuSession[sender];
+            await m.reply('🌸 *Sesi Otakudesu telah diakhiri. Terima kasih!* 🍡');
+            return true;
+        }
+
+        // STEP 1: SESI HASIL PENCARIAN (Menunggu Pilihan Anime #1 - #10)
+        if (session.step === 'SEARCH_RESULTS') {
+            const choiceNum = parseInt(cmd, 10);
+            if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= session.searchResults.length) {
+                const selectedAnime = session.searchResults[choiceNum - 1];
+                await m.reply(`_📜 Mengambil detail anime *${selectedAnime.title}*..._`);
+                try {
+                    const detail = await otakudesu.get(selectedAnime.id, selectedAnime);
+                    if (!detail) {
+                        await m.reply(`❌ Gagal memuat data detail untuk *${selectedAnime.title}*. Server Otakudesu mungkin sedang offline atau terhalang proteksi.`);
+                        return true;
+                    }
+                    session.step = 'ANIME_DETAIL';
+                    session.selectedAnime = detail;
+
+                    const caption = renderAnimeDetail(session);
+                    await sendImageOrReply(bob, m, detail.thumb, caption);
+                    return true;
+                } catch (err) {
+                    console.error('Error fetching detail in session:', err);
+                    await m.reply(`❌ Gagal mengambil detail anime: ${err.message || 'Terjadi gangguan jaringan atau Cloudflare block'}`);
+                    return true;
+                }
+            }
+        }
+
+        // STEP 2: SESI DETAIL ANIME (Menunggu Pilihan Episode / Batch #1 - #15)
+        if (session.step === 'ANIME_DETAIL') {
+            if (cmd === 'search') {
+                session.step = 'SEARCH_RESULTS';
+                const caption = renderSearchResults(session);
+                await m.reply(caption);
+                return true;
+            }
+
+            const epNum = parseInt(cmd, 10);
+            const episodes = session.selectedAnime?.episode || [];
+            if (!isNaN(epNum) && epNum >= 1 && epNum <= episodes.length) {
+                const selectedEp = episodes[epNum - 1];
+                session.step = 'EPISODE_CHOSEN';
+                session.selectedEpisode = selectedEp;
+
+                const caption = renderEpisodeChoices(session);
+                await m.reply(caption);
+                return true;
+            }
+        }
+
+        // STEP 3: SESI PILIHAN AKSI EPISODE / BATCH (Download / Stream / Back)
+        if (session.step === 'EPISODE_CHOSEN') {
+            if (cmd === 'back' || cmd === 'kembali') {
+                session.step = 'ANIME_DETAIL';
+                const caption = renderAnimeDetail(session);
+                await m.reply(caption);
+                return true;
+            }
+
+            // Opsi Download (#1 atau #dl atau #download)
+            if (cmd === '1' || cmd === 'dl' || cmd === 'download') {
+                await m.reply('_📥 Mengambil link download (semua kualitas)..._');
+                try {
+                    const isBatch = session.selectedEpisode.id.includes('batch');
+                    const resDl = await otakudesu.download(session.selectedEpisode.id, isBatch);
+                    if (!resDl || resDl.length === 0) {
+                        await m.reply('❌ Link download tidak ditemukan untuk episode/batch ini.');
+                        return true;
+                    }
+
+                    const txt = formatDownloadLinks(resDl, session.selectedEpisode.episode, session.selectedEpisode.id);
+                    await m.reply(txt);
+                    return true;
+                } catch (err) {
+                    console.error('Error fetching download in session:', err);
+                    await m.reply('❌ Gagal mengambil link download.');
+                    return true;
+                }
+            }
+
+            // Opsi Streaming (#2 atau #stream atau #nonton)
+            if (cmd === '2' || cmd === 'stream' || cmd === 'nonton') {
+                await m.reply('_🎬 Mengambil link Web Player Streaming TV..._');
+                try {
+                    const iframeUrl = await otakudesu.stream(session.selectedEpisode.id);
+                    if (!iframeUrl) {
+                        await m.reply('❌ Player streaming tidak ditemukan untuk episode ini.');
+                        return true;
+                    }
+
+                    const { txt, webPlayerUrl } = formatStreamLinks(iframeUrl, session.selectedEpisode.episode, session.selectedEpisode.id);
+                    await m.reply(txt);
+                    await sendStreamingInteractive(bob, m, {
+                        title: `🎬 Stream: ${session.selectedEpisode.episode}`,
+                        bodyText: `Silakan klik tombol di bawah untuk menonton episode *${session.selectedEpisode.episode}*.`,
+                        streamUrl: iframeUrl,
+                        webPlayerUrl: webPlayerUrl
+                    });
+                    return true;
+                } catch (err) {
+                    console.error('Error fetching stream in session:', err);
+                    await m.reply('❌ Gagal mengambil link streaming.');
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    },
+
     exec: async (m, { prefix, command, text, bob }) => {
         const sender = m.sender;
         let args = text ? text.trim().split(/ +/) : [];
-        let cmd = command.toLowerCase().replace(/^#/, '');
 
-        // === CEK TIMEOUT SESI (Auto Reset jika > 1 Menit/60 Detik) ===
-        if (global.otakudesuSession[sender]) {
-            if (Date.now() - global.otakudesuSession[sender].timestamp > 60000) {
-                delete global.otakudesuSession[sender];
-            }
-        }
-
-        // === PENANGANAN KELUAR SESI (#exit / #keluar / #stop / #batal) ===
-        if (cmd === 'exit' || cmd === 'keluar' || cmd === 'stop' || cmd === 'batal') {
-            if (global.otakudesuSession[sender]) {
+        // Penanganan keluar sesi via perintah langsung (cth: .otakudesu exit)
+        if (['exit', 'keluar', 'stop', 'batal'].includes(args[0]?.toLowerCase())) {
+            if (global.otakudesuSession && global.otakudesuSession[sender]) {
                 delete global.otakudesuSession[sender];
                 return m.reply('🌸 *Sesi Otakudesu telah diakhiri. Terima kasih!* 🍡');
-            } else if (['otakudesu', 'otaku', 'anime'].includes(command.toLowerCase())) {
-                return m.reply('❌ Kamu sedang tidak memiliki sesi Otakudesu yang aktif.');
             }
-            return;
-        }
-
-        // === JIKA PENGGUNA MEMILIKI SESI AKTIF ===
-        if (global.otakudesuSession[sender]) {
-            const session = global.otakudesuSession[sender];
-            session.timestamp = Date.now(); // Perbarui aktivitas terakhir
-
-            // ----------------------------------------------------
-            // STEP 1: SESI HASIL PENCARIAN (Menunggu Pilihan Anime #1 - #10)
-            // ----------------------------------------------------
-            if (session.step === 'SEARCH_RESULTS') {
-                const choiceNum = parseInt(cmd);
-                if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= session.searchResults.length) {
-                    const selectedAnime = session.searchResults[choiceNum - 1];
-                    m.reply(`_📜 Mengambil detail anime *${selectedAnime.title}*..._`);
-                    try {
-                        const detail = await otakudesu.get(selectedAnime.id, selectedAnime);
-                        if (!detail) {
-                            return m.reply(`❌ Gagal memuat data detail untuk *${selectedAnime.title}*. Server Otakudesu mungkin sedang offline atau terhalang proteksi.`);
-                        }
-                        session.step = 'ANIME_DETAIL';
-                        session.selectedAnime = detail;
-
-                        const caption = renderAnimeDetail(session);
-                        return sendImageOrReply(bob, m, detail.thumb, caption);
-                    } catch (err) {
-                        console.error('Error fetching detail in session:', err);
-                        return m.reply(`❌ Gagal mengambil detail anime: ${err.message || 'Terjadi gangguan jaringan atau Cloudflare block'}`);
-                    }
-                }
-            }
-
-            // ----------------------------------------------------
-            // STEP 2: SESI DETAIL ANIME (Menunggu Pilihan Episode / Batch #1 - #15)
-            // ----------------------------------------------------
-            if (session.step === 'ANIME_DETAIL') {
-                if (cmd === 'search') {
-                    session.step = 'SEARCH_RESULTS';
-                    const caption = renderSearchResults(session);
-                    return m.reply(caption);
-                }
-
-                const epNum = parseInt(cmd);
-                const episodes = session.selectedAnime?.episode || [];
-                if (!isNaN(epNum) && epNum >= 1 && epNum <= episodes.length) {
-                    const selectedEp = episodes[epNum - 1];
-                    session.step = 'EPISODE_CHOSEN';
-                    session.selectedEpisode = selectedEp;
-
-                    const caption = renderEpisodeChoices(session);
-                    return m.reply(caption);
-                }
-            }
-
-            // ----------------------------------------------------
-            // STEP 3: SESI PILIHAN AKSI EPISODE / BATCH (Download / Stream / Back)
-            // ----------------------------------------------------
-            if (session.step === 'EPISODE_CHOSEN') {
-                if (cmd === 'back' || cmd === 'kembali') {
-                    session.step = 'ANIME_DETAIL';
-                    const caption = renderAnimeDetail(session);
-                    return m.reply(caption);
-                }
-
-                // Opsi Download (#1 atau #dl atau #download)
-                if (cmd === '1' || cmd === 'dl' || cmd === 'download') {
-                    m.reply('_📥 Mengambil link download (semua kualitas)..._');
-                    try {
-                        const isBatch = session.selectedEpisode.id.includes('batch');
-                        const resDl = await otakudesu.download(session.selectedEpisode.id, isBatch);
-                        if (!resDl || resDl.length === 0) {
-                            return m.reply('❌ Link download tidak ditemukan untuk episode/batch ini.');
-                        }
-
-                        const txt = formatDownloadLinks(resDl, session.selectedEpisode.episode, session.selectedEpisode.id);
-                        return m.reply(txt);
-                    } catch (err) {
-                        console.error('Error fetching download in session:', err);
-                        return m.reply('❌ Gagal mengambil link download.');
-                    }
-                }
-
-                // Opsi Streaming (#2 atau #stream atau #nonton)
-                if (cmd === '2' || cmd === 'stream' || cmd === 'nonton') {
-                    m.reply('_🎬 Mengambil link Web Player Streaming TV..._');
-                    try {
-                        const iframeUrl = await otakudesu.stream(session.selectedEpisode.id);
-                        if (!iframeUrl) {
-                            return m.reply('❌ Player streaming tidak ditemukan untuk episode ini.');
-                        }
-
-                        const { txt, webPlayerUrl } = formatStreamLinks(iframeUrl, session.selectedEpisode.episode, session.selectedEpisode.id);
-                        await m.reply(txt);
-                        return await sendStreamingInteractive(bob, m, {
-                            title: `🎬 Stream: ${session.selectedEpisode.episode}`,
-                            bodyText: `Silakan klik tombol di bawah untuk menonton episode *${session.selectedEpisode.episode}*.`,
-                            streamUrl: iframeUrl,
-                            webPlayerUrl: webPlayerUrl
-                        });
-                    } catch (err) {
-                        console.error('Error fetching stream in session:', err);
-                        return m.reply('❌ Gagal mengambil link streaming.');
-                    }
-                }
-            }
+            return m.reply('❌ Kamu sedang tidak memiliki sesi Otakudesu yang aktif.');
         }
 
         // === JIKA PENGGUNA MEMULAI PERINTAH BARU TERORGANISIR ===

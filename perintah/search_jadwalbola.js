@@ -8,6 +8,143 @@ const {
 global.jadwalBolaSession = global.jadwalBolaSession || {};
 const SESSION_TIMEOUT_MS = 2 * 60 * 1000; // 2 Menit
 
+let generateWAMessageFromContent;
+let proto;
+async function getBaileys() {
+    if (!generateWAMessageFromContent || !proto) {
+        try {
+            const baileys = await import('@whiskeysockets/baileys');
+            generateWAMessageFromContent = baileys.generateWAMessageFromContent;
+            proto = baileys.proto;
+        } catch (e) {
+            console.error('Failed to import @whiskeysockets/baileys:', e);
+        }
+    }
+    return { generateWAMessageFromContent, proto };
+}
+
+/**
+ * Mengirim daftar pertandingan sepak bola menggunakan format List Message interaktif Baileys (single_select)
+ */
+async function sendJadwalListInteractive(bob, m, { matches, query = '', prefix = '.' }) {
+    const { generateWAMessageFromContent, proto } = await getBaileys();
+    if (!generateWAMessageFromContent || !proto) return false;
+
+    // Kelompokkan pertandingan berdasarkan kompetisi/liga
+    const leagueMap = new Map();
+    matches.forEach((item, index) => {
+        const num = index + 1;
+        const liga = (item.liga || 'Kompetisi Sepak Bola').trim();
+        if (!leagueMap.has(liga)) {
+            leagueMap.set(liga, []);
+        }
+        const waktu = item.waktu || '-';
+        const skor = (item.skor && item.skor !== '-' && !item.skor.includes('- - -')) ? ` | 🎯 ${item.skor}` : '';
+        const desc = `⏱️ ${waktu} | 📌 ${item.status || 'Jadwal'}${skor}`;
+        leagueMap.get(liga).push({
+            header: `Laga #${num}`,
+            title: (item.pertandingan || 'Pertandingan').slice(0, 60),
+            description: desc.slice(0, 72),
+            id: `#${num}`
+        });
+    });
+
+    // Batasi maksimum 10 section sesuai standar WhatsApp
+    const sections = [];
+    let otherRows = [];
+    let sectionCount = 0;
+    for (const [liga, rows] of leagueMap.entries()) {
+        if (sectionCount < 9 || leagueMap.size <= 10) {
+            sections.push({
+                title: `🏆 ${liga.slice(0, 30)}`,
+                rows: rows.slice(0, 10)
+            });
+            sectionCount++;
+        } else {
+            otherRows.push(...rows);
+        }
+    }
+    if (otherRows.length > 0) {
+        sections.push({
+            title: '🏆 Kompetisi Lainnya',
+            rows: otherRows.slice(0, 10)
+        });
+    }
+
+    let bodyText = `⚽ *JADWAL PERTANDINGAN SEPAK BOLA* ⚽\n`;
+    if (query) {
+        bodyText += `🔍 *Hasil Pencarian:* "${query}"\n`;
+    }
+    bodyText += `📊 *Total Laga:* ${matches.length} Pertandingan\n\n`;
+    bodyText += `Ketuk tombol *Pilih Pertandingan* di bawah untuk melihat susunan pemain (Starting XI), formasi, dan statistik laga secara langsung.\n\n`;
+    bodyText += `_💡 Atau kamu juga bisa membalas langsung dengan nomor (#1 s/d #${matches.length})._`;
+
+    const interactiveMessage = proto.Message.InteractiveMessage.create({
+        header: proto.Message.InteractiveMessage.Header.create({
+            title: "⚽ JADWAL PERTANDINGAN SEPAK BOLA",
+            hasMediaAttachment: false
+        }),
+        body: proto.Message.InteractiveMessage.Body.create({
+            text: bodyText
+        }),
+        footer: proto.Message.InteractiveMessage.Footer.create({
+            text: "Self-Bot • Football Live Schedule"
+        }),
+        nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+            buttons: [
+                {
+                    name: "single_select",
+                    buttonParamsJson: JSON.stringify({
+                        title: "📋 Pilih Pertandingan",
+                        sections: sections
+                    })
+                }
+            ],
+            messageParamsJson: "{}"
+        })
+    });
+
+    const waMsg = generateWAMessageFromContent(m.chat, {
+        viewOnceMessage: {
+            message: {
+                interactiveMessage
+            }
+        }
+    }, {
+        quoted: m
+    });
+
+    const relayOptions = {
+        additionalNodes: [
+            {
+                tag: "biz",
+                attrs: {},
+                content: [
+                    {
+                        tag: "interactive",
+                        attrs: {
+                            type: "native_flow",
+                            v: "1",
+                        },
+                        content: [
+                            {
+                                tag: "native_flow",
+                                attrs: {
+                                    v: "9",
+                                    name: "mixed",
+                                },
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    };
+
+    await bob.relayMessage(m.chat, waMsg.message, { ...relayOptions, messageId: waMsg.key.id });
+    return true;
+}
+
 /**
  * Membersihkan sesi yang sudah kedaluwarsa
  */
@@ -41,49 +178,75 @@ module.exports = {
      * Hook before: Menangani respon interaktif (pilih nomor laga 1..N atau keluar)
      */
     before: async (m, { bob, body, budy, isCmd, prefix }) => {
-        if (isCmd) return false;
         if (!m || m.isBaileys || m.fromMe) return false;
 
         const text = (budy || body || '').trim();
         if (!text) return false;
 
         const sessionId = m.isGroup ? `${m.chat}_${m.sender}` : m.chat;
-        const session = global.jadwalBolaSession[sessionId];
-        if (!session) return false;
-
-        // Cek apakah sesi sudah kedaluwarsa
-        if (Date.now() - session.timestamp > SESSION_TIMEOUT_MS) {
-            delete global.jadwalBolaSession[sessionId];
-            return false;
+        let session = global.jadwalBolaSession[sessionId];
+        if (!session && m.isGroup && global.jadwalBolaSession[m.chat]) {
+            session = global.jadwalBolaSession[m.chat];
         }
 
-        const lower = text.toLowerCase();
+        // Cek apakah user meng-quote pesan jadwal bola bot
+        const isQuotingBotSchedule = m.quoted && (
+            (m.quoted.text && (
+                m.quoted.text.includes('JADWAL PERTANDINGAN SEPAK BOLA') ||
+                m.quoted.text.includes('DETAIL PERTANDINGAN SEPAK BOLA')
+            ))
+        );
+
+        // Jika tidak ada sesi jadwal bola dan tidak sedang me-reply jadwal bola bot, abaikan
+        if (!session && !isQuotingBotSchedule) return false;
+
+        const cleanNumber = text.replace(/^[#.!❗\s]+/, '').trim();
+        const isNumber = /^\d+$/.test(cleanNumber);
+        const lower = text.toLowerCase().trim();
+        const cleanLower = lower.replace(/^[#.!❗\s]+/, '').trim();
+        const isExit = ['exit', 'keluar', 'stop', 'batal'].includes(cleanLower);
+
+        // Jika ini adalah perintah bot lain ber-prefix (misal .menu, .play, .ai) dan BUKAN nomor / exit, biarkan handler lain memproses
+        if (isCmd && !isNumber && !isExit) return false;
+
+        // Cek apakah sesi sudah kedaluwarsa
+        if (session && (Date.now() - session.timestamp > SESSION_TIMEOUT_MS)) {
+            delete global.jadwalBolaSession[sessionId];
+            if (m.isGroup) delete global.jadwalBolaSession[m.chat];
+            session = null;
+        }
 
         // Pengguna ingin keluar dari sesi interaktif
-        if (['exit', 'keluar', 'stop', 'batal', '#exit', '#keluar'].includes(lower)) {
-            delete global.jadwalBolaSession[sessionId];
+        if (isExit) {
+            if (session) {
+                delete global.jadwalBolaSession[sessionId];
+                if (m.isGroup) delete global.jadwalBolaSession[m.chat];
+            }
             await m.reply('⚽ *Sesi Jadwal Sepak Bola telah diakhiri. Terima kasih!*');
             return true;
         }
 
-        // Cek apakah input berupa nomor (misal: "1", "#1", " 2 ")
-        const cleanNumber = text.replace(/^[#.\s]+/, '');
-        const choiceNum = parseInt(cleanNumber, 10);
+        // Cek apakah input berupa nomor (misal: "5", "#5", ".5", " 5 ")
+        if (isNumber) {
+            const choiceNum = parseInt(cleanNumber, 10);
+            if (!session) {
+                await m.reply('⚠️ *Sesi Jadwal Bola telah kedaluwarsa.*\nSilakan ketik *.jadwalbola* kembali untuk melihat jadwal terbaru.');
+                return true;
+            }
 
-        if (!isNaN(choiceNum) && choiceNum >= 1 && choiceNum <= session.matches.length) {
-            session.timestamp = Date.now();
-            const selectedMatch = session.matches[choiceNum - 1];
-            const detailText = formatJadwalDetail(selectedMatch, choiceNum);
-            await m.reply(detailText);
-            return true;
+            if (choiceNum >= 1 && choiceNum <= session.matches.length) {
+                session.timestamp = Date.now();
+                const selectedMatch = session.matches[choiceNum - 1];
+                const detailText = formatJadwalDetail(selectedMatch, choiceNum);
+                await m.reply(detailText);
+                return true;
+            } else {
+                await m.reply(`⚠️ Nomor laga tidak valid. Silakan pilih nomor antara *1* sampai *${session.matches.length}*.`);
+                return true;
+            }
         }
 
         // Jika pesan meng-quote pesan bot tentang jadwal bola dan mencari nama klub
-        const isQuotingBotSchedule = m.quoted && (
-            (m.quoted.text && m.quoted.text.includes('JADWAL PERTANDINGAN SEPAK BOLA')) ||
-            (m.quoted.text && m.quoted.text.includes('DETAIL PERTANDINGAN SEPAK BOLA'))
-        );
-
         if (isQuotingBotSchedule && text.length >= 3) {
             try {
                 const results = await searchJadwalBola(text);
@@ -92,17 +255,40 @@ module.exports = {
                     return true;
                 }
                 if (results.length === 1) {
-                    session.matches = results;
-                    session.timestamp = Date.now();
+                    if (session) {
+                        session.matches = results;
+                        session.timestamp = Date.now();
+                    } else {
+                        global.jadwalBolaSession[sessionId] = {
+                            chat: m.chat,
+                            sender: m.sender,
+                            matches: results,
+                            timestamp: Date.now()
+                        };
+                        if (m.isGroup) global.jadwalBolaSession[m.chat] = global.jadwalBolaSession[sessionId];
+                    }
                     await m.reply(formatJadwalDetail(results[0], 1));
                     return true;
                 }
-                session.matches = results;
-                session.timestamp = Date.now();
+                if (session) {
+                    session.matches = results;
+                    session.timestamp = Date.now();
+                } else {
+                    global.jadwalBolaSession[sessionId] = {
+                        chat: m.chat,
+                        sender: m.sender,
+                        matches: results,
+                        timestamp: Date.now()
+                    };
+                    if (m.isGroup) global.jadwalBolaSession[m.chat] = global.jadwalBolaSession[sessionId];
+                }
+                try {
+                    const sent = await sendJadwalListInteractive(bob, m, { matches: results, query: text, prefix });
+                    if (sent) return true;
+                } catch (_) {}
                 await m.reply(formatJadwalList(results, text));
                 return true;
             } catch (err) {
-                // Jangan cegah jika gagal
                 return false;
             }
         }
@@ -191,10 +377,22 @@ module.exports = {
 
             // Simpan ke sesi interaktif untuk pemilihan berikutnya
             global.jadwalBolaSession[sessionId] = {
+                chat: m.chat,
+                sender: m.sender,
                 matches,
                 query,
                 timestamp: Date.now()
             };
+            if (m.isGroup) {
+                global.jadwalBolaSession[m.chat] = global.jadwalBolaSession[sessionId];
+            }
+            // Coba kirimkan via List Message interaktif Baileys (single_select)
+            try {
+                const sentInteractive = await sendJadwalListInteractive(bob, m, { matches, query, prefix });
+                if (sentInteractive) return;
+            } catch (interactiveErr) {
+                console.warn('Fallback ke format teks untuk jadwal bola:', interactiveErr.message || interactiveErr);
+            }
 
             const listMsg = formatJadwalList(matches, query);
             return m.reply(listMsg);

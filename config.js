@@ -12,6 +12,7 @@ global.owner = ['6285849261085']
 global.ownerPassword = 'owner123'
 global.pairing = '6285822578327' // Gunakan kode negara (cth: 628xxx)
 global.author = 'WhatsApp Bot'
+global.sourceUrl = 'https://github.com/febzofc/self-bot'
 global.prefa = ['#','!','.','❗']
 global.streamingUrl = 'http://localhost:2555'
 
@@ -30,5 +31,13 @@ global.mess = {
     wait: 'Loading...',    
 }
 
-global.thumb = fs.readFileSync('./lib/bob.jpg')
+global.thumb = fs.existsSync('./lib/bob.jpg') ? fs.readFileSync('./lib/bob.jpg') : Buffer.alloc(0)
+
+let file = require.resolve(__filename)
+fs.watchFile(file, () => {
+    fs.unwatchFile(file)
+    console.log(`Update ${__filename}`)
+    delete require.cache[file]
+    require(file)
+})
 

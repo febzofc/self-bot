@@ -52,9 +52,9 @@ function renderSearchResults(session) {
 }
 
 function renderPhoneDetail(detail) {
-    let txt = `📱 📱 *GSMARENA SPECIFICATIONS* 📱 📱\n\n`;
+    let txt = `📱 📱 *SMARTPHONE SPECIFICATIONS* 📱 📱\n\n`;
     txt += `🏆 *${detail.title}*\n`;
-    txt += `🔗 ${detail.url}\n\n`;
+    if (detail.url) txt += `🔗 ${detail.url}\n\n`;
 
     const specs = detail.specs || {};
 
@@ -84,17 +84,16 @@ function renderPhoneDetail(detail) {
 
     if (specs['Main Camera']) {
         txt += `📸 *KAMERA UTAMA*\n`;
-        if (specs['Main Camera']['Triple']) txt += `• *Kamera:* ${specs['Main Camera']['Triple'].replace(/\n/g, ' ')}\n`;
-        else if (specs['Main Camera']['Single']) txt += `• *Kamera:* ${specs['Main Camera']['Single'].replace(/\n/g, ' ')}\n`;
-        else if (specs['Main Camera']['Dual']) txt += `• *Kamera:* ${specs['Main Camera']['Dual'].replace(/\n/g, ' ')}\n`;
-        else if (specs['Main Camera']['Quad']) txt += `• *Kamera:* ${specs['Main Camera']['Quad'].replace(/\n/g, ' ')}\n`;
+        const mainCam = specs['Main Camera']['Triple'] || specs['Main Camera']['Single'] || specs['Main Camera']['Dual'] || specs['Main Camera']['Quad'] || specs['Main Camera']['Konfigurasi'] || specs['Main Camera']['Details'];
+        if (mainCam) txt += `• *Kamera:* ${mainCam.replace(/\n/g, ' ')}\n`;
         if (specs['Main Camera']['Video']) txt += `• *Video:* ${specs['Main Camera']['Video']}\n`;
         txt += `\n`;
     }
 
     if (specs['Selfie camera']) {
         txt += `🤳 *KAMERA DEPAN*\n`;
-        if (specs['Selfie camera']['Single']) txt += `• *Kamera:* ${specs['Selfie camera']['Single'].replace(/\n/g, ' ')}\n`;
+        const selfieCam = specs['Selfie camera']['Single'] || specs['Selfie camera']['Dual'] || specs['Selfie camera']['Konfigurasi'] || specs['Selfie camera']['Details'];
+        if (selfieCam) txt += `• *Kamera:* ${selfieCam.replace(/\n/g, ' ')}\n`;
         if (specs['Selfie camera']['Video']) txt += `• *Video:* ${specs['Selfie camera']['Video']}\n`;
         txt += `\n`;
     }
@@ -114,7 +113,7 @@ function renderPhoneDetail(detail) {
         txt += `\n`;
     }
 
-    if (specs['Misc'] && specs['Misc']['Price']) {
+    if (specs['Misc'] && specs['Misc']['Price'] && specs['Misc']['Price'] !== '-') {
         txt += `💰 *ESTIMASI HARGA:* ${specs['Misc']['Price']}\n\n`;
     }
 
