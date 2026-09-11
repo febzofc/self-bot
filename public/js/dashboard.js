@@ -213,8 +213,23 @@ module.exports = {
         connectLogStream();
     }
 
+    // Public fetch for unauthenticated or initial state
+    async function fetchPublicStats() {
+        try {
+            const res = await fetch('/api/plugins/public-stats');
+            if (res.ok) {
+                const data = await res.json();
+                if (statTotalPlugins) statTotalPlugins.textContent = data.totalPlugins || 0;
+                if (statActivePlugins) statActivePlugins.textContent = data.activeCount || 0;
+                if (statDisabledPlugins) statDisabledPlugins.textContent = data.disabledCount || 0;
+                if (statErrorPlugins) statErrorPlugins.textContent = data.erroredCount || 0;
+            }
+        } catch (_) {}
+    }
+
     // Check Auth State on Page Load
     async function checkAuthState() {
+        fetchPublicStats();
         const token = getOwnerToken();
         if (!token) {
             showLoginModal();
@@ -307,29 +322,30 @@ module.exports = {
         if (!currentStats) return;
         dashboardPluginList.innerHTML = '';
 
+        const allFiles = Array.isArray(currentStats.allFiles) ? currentStats.allFiles : [];
         const erroredKeys = Object.keys(currentStats.erroredPlugins || {});
         const disabledKeys = Object.keys(currentStats.disabledPlugins || {});
         const activeKeys = currentStats.activePlugins || [];
 
-        let itemsToRender = [];
+        // Himpun seluruh file secara unik agar jumlah di list selalu sinkron 100% dengan total
+        const allUniqueFiles = Array.from(new Set([
+            ...allFiles,
+            ...erroredKeys,
+            ...disabledKeys,
+            ...activeKeys
+        ])).sort();
 
-        // Collect Errored
-        erroredKeys.forEach(filename => {
-            itemsToRender.push({ filename, status: 'error', info: currentStats.erroredPlugins[filename] });
-        });
-
-        // Collect Disabled
-        disabledKeys.forEach(filename => {
-            if (!erroredKeys.includes(filename)) {
-                itemsToRender.push({ filename, status: 'disabled', info: null });
+        let itemsToRender = allUniqueFiles.map(filename => {
+            if (erroredKeys.includes(filename)) {
+                return { filename, status: 'error', info: currentStats.erroredPlugins[filename] };
             }
-        });
-
-        // Collect Active
-        activeKeys.forEach(filename => {
-            if (!erroredKeys.includes(filename) && !disabledKeys.includes(filename)) {
-                itemsToRender.push({ filename, status: 'active', info: null });
+            if (disabledKeys.includes(filename)) {
+                return { filename, status: 'disabled', info: null };
             }
+            if (activeKeys.includes(filename)) {
+                return { filename, status: 'active', info: null };
+            }
+            return { filename, status: 'disabled', info: null };
         });
 
         // Filter
@@ -992,6 +1008,15 @@ module.exports = {
     // Refresh & Save Buttons
     btnRefreshStats.addEventListener('click', fetchPluginStats);
     btnSavePluginCode.addEventListener('click', saveCurrentPluginCode);
+
+    // Auto-sync polling setiap 4 detik agar web dashboard selalu sinkron real-time
+    setInterval(() => {
+        if (getOwnerToken()) {
+            fetchPluginStats();
+        } else {
+            fetchPublicStats();
+        }
+    }, 4000);
 
     // Check Auth and Initialize
     checkAuthState();

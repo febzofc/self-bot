@@ -76,31 +76,39 @@ module.exports = async (bob, m, chatUpdate, store) => {
                 ? img_url
                 : (typeof img_url === 'string' && fs.existsSync(img_url))
                     ? fs.readFileSync(img_url)
-                    : await getBuffer(img_url)
-            try {
-                const sharp = require('sharp');
-                if (Buffer.isBuffer(thumbBuf) && thumbBuf.length > 0) {
-                    thumbBuf = await sharp(thumbBuf)
-                        .resize(400, 400, { fit: 'cover' })
-                        .jpeg({ quality: 80 })
-                        .toBuffer();
+                    : await getBuffer(img_url);
+
+            if (Buffer.isBuffer(thumbBuf) && thumbBuf.length > 0 && bob?.waUploadToServer) {
+                try {
+                    const resMedia = await prepareWAMessageMedia(
+                        { image: thumbBuf },
+                        { upload: bob.waUploadToServer }
+                    );
+                    if (resMedia?.imageMessage?.jpegThumbnail) {
+                        thumbBuf = Buffer.from(resMedia.imageMessage.jpegThumbnail);
+                    }
+                } catch (e) {
+                    console.error('Error upload media to WA server in sendFakePreviewImg:', e);
                 }
-            } catch (_) {}
+            }
+
+            const targetUrl = source_url || global.sourceUrl || 'https://github.com/febzofc/self-bot';
             let send = {
-                text: txt,
+                text: (txt || '').trim(),
                 contextInfo: {
                     externalAdReply: {
                         title: title_,
                         body: desc,
                         thumbnail: thumbBuf,
-                        sourceUrl: source_url || global.sourceUrl || 'https://github.com/febzofc/self-bot',
-                        mediaUrl: source_url || global.sourceUrl || 'https://github.com/febzofc/self-bot',
+                        sourceUrl: targetUrl,
+                        mediaUrl: targetUrl,
                         renderLargerThumbnail: true,
+                        showAdAttribution: false,
                         mediaType: 1
                     }
                 }
-            }
-            await bob.sendMessage(m.chat, send, { quoted: m })
+            };
+            await bob.sendMessage(m.chat, send, { quoted: m });
         }
 
 
@@ -271,7 +279,48 @@ module.exports = async (bob, m, chatUpdate, store) => {
                 const userNumber = userJid.split('@')[0];
                 const uptime = runtime(process.uptime());
 
+                // Ambil berita random dari CNBC Indonesia
+                let newsBlock = '';
+                try {
+                    const { data: newsRes } = await axios.get('https://api.siputzx.my.id/api/berita/cnbcindonesia', { timeout: 6000 });
+                    const articles = Array.isArray(newsRes?.data) ? newsRes.data : (Array.isArray(newsRes?.result) ? newsRes.result : []);
+                    if (articles.length > 0) {
+                        const randomNews = articles[Math.floor(Math.random() * articles.length)];
+                        let newsDate = randomNews.date ? randomNews.date.trim() : '';
+                        if (!newsDate && randomNews.label) {
+                            const timeMatch = randomNews.label.match(/\b\d+\s+(detik|menit|jam|hari)\s+yang\s+lalu\b/i);
+                            if (timeMatch) newsDate = timeMatch[0];
+                        }
+
+                        let newsLink = (randomNews.link || '').trim();
+                        if (newsLink) {
+                            try {
+                                const { data: shortUrl } = await axios.get(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(newsLink)}`, { timeout: 4000 });
+                                if (typeof shortUrl === 'string' && shortUrl.startsWith('http')) {
+                                    newsLink = shortUrl.trim();
+                                }
+                            } catch (errShort) {
+                                console.warn('Gagal memperpendek URL berita dengan TinyURL:', errShort?.message || errShort);
+                            }
+                        }
+
+                        newsBlock += `╭───「 📰 *BERITA TERKINI* 」\n`;
+                        if (randomNews.title) newsBlock += `│ • *Judul :* ${randomNews.title.trim()}\n`;
+                        if (newsDate) newsBlock += `│ • *Waktu :* ${newsDate}\n`;
+                        if (randomNews.category || randomNews.type) {
+                            newsBlock += `│ • *Kategori :* ${(randomNews.category || randomNews.type).toUpperCase()}\n`;
+                        }
+                        if (newsLink) newsBlock += `│ • *Link :* ${newsLink}\n`;
+                        newsBlock += `╰──────────────────\n\n`;
+                    }
+                } catch (e) {
+                    console.error('Error fetching CNBC news for menu:', e?.message || e);
+                }
+
                 let menuText = `Halo *@${userNumber}* 👋\n${ucapanWaktu}\n\n`;
+                if (newsBlock) {
+                    menuText += newsBlock;
+                }
                 menuText += `╭───「 *INFO BOT* 」\n`;
                 menuText += `│ • *Prefix :* [ ${prefix} ]\n`;
                 menuText += `│ • *Versi :* v1.4.0\n`;

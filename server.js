@@ -233,6 +233,11 @@ app.get('/api/owner/verify', (req, res) => {
     res.json({ success: true, authenticated });
 });
 
+// Public read-only stats endpoint (agar statistik plugin selalu sinkron di web)
+app.get('/api/plugins/public-stats', (req, res) => {
+    res.json(pluginManager.getStats());
+});
+
 // Protect all plugin management endpoints with requireOwnerAuth
 app.use('/api/plugins', requireOwnerAuth);
 
