@@ -127,5 +127,38 @@
       "draw": 0
     }
   },
-  "expressions": []
+  "expressions": [
+    {
+      "id": "mabar_1790080293482_5jg9",
+      "name": "mabar",
+      "description": "digunakan saat user meminta Mabar mengajak Mabar atau bermain game",
+      "file": "src/expressions/mabar_1790080293482_5jg9.webp",
+      "createdAt": "2026-09-22T12:31:33.482Z",
+      "createdBy": "6285849261085@s.whatsapp.net"
+    },
+    {
+      "id": "pujian_1790080318967_inl6",
+      "name": "pujian",
+      "description": "pujian cantik/ganteng",
+      "file": "src/expressions/pujian_1790080318967_inl6.webp",
+      "createdAt": "2026-09-22T12:31:58.968Z",
+      "createdBy": "6285849261085@s.whatsapp.net"
+    },
+    {
+      "id": "sedih_1790080601933_f4s5",
+      "name": "sedih",
+      "description": "when yah gunakan saat kapan yahh",
+      "file": "src/expressions/sedih_1790080601933_f4s5.webp",
+      "createdAt": "2026-09-22T12:36:41.933Z",
+      "createdBy": "6285849261085@s.whatsapp.net"
+    },
+    {
+      "id": "sus_1790080634608_g0wd",
+      "name": "sus",
+      "description": "curiga atau saat ada kata kata sus yang menggangu atau kata kata jomok",
+      "file": "src/expressions/sus_1790080634608_g0wd.webp",
+      "createdAt": "2026-09-22T12:37:14.609Z",
+      "createdBy": "6285849261085@s.whatsapp.net"
+    }
+  ]
 }
