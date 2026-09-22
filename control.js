@@ -329,7 +329,7 @@ module.exports = async (bob, m, chatUpdate, store) => {
                 menuText += `│ • *Plugin Aktif :* ${stats.activeCount} / ${stats.totalPlugins}\n`;
                 menuText += `╰──────────────────\n\n`;
 
-                const categoryOrder = ['downloader', 'maker', 'game', 'minecraft', 'anime', 'search', 'group', 'tools', 'info', 'streaming', 'system', 'other'];
+                const categoryOrder = ['downloader', 'maker', 'game', 'minecraft', 'anime', 'search', 'group', 'tools', 'owner tools', 'info', 'streaming', 'system', 'other'];
                 const sortedCategories = Object.keys(commandsByCategory).sort((a, b) => {
                     const idxA = categoryOrder.indexOf(a);
                     const idxB = categoryOrder.indexOf(b);

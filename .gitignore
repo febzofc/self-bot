@@ -4,6 +4,7 @@ package-lock.json
 
 # Local Session Data (CRITICAL: Private WhatsApp Keys)
 session/
+.agents/.bridge_port
 
 # IDE config & Brain Artifacts
 .gemini/

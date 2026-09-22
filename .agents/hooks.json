@@ -1,0 +1,15 @@
+{
+  "permission-gate": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "command": "node .agents/hooks/gatekeeper.js",
+            "timeout": 130
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -485,15 +485,35 @@ const startBot = async () => {
     }
 
     bob.downloadMediaMessage = async (message) => {
-        let mime = (message.msg || message).mimetype || ''
-        let messageType = message.mtype ? message.mtype.replace(/Message/gi, '') : mime.split('/')[0]
-        const stream = await downloadContentFromMessage(message, messageType)
-        let buffer = Buffer.from([])
-        for await (const chunk of stream) {
-            buffer = Buffer.concat([buffer, chunk])
+        let msg = message.msg || (message.message ? (message.message[Object.keys(message.message)[0]] || message) : message)
+        let mime = (msg && msg.mimetype) || (message && message.mimetype) || ''
+        let rawType = message.mtype || (msg && msg.mtype) || ''
+        let messageType = rawType ? rawType.replace(/Message/gi, '').toLowerCase() : (mime ? mime.split('/')[0] : 'image')
+
+        const typesToTry = [messageType]
+        if (messageType === 'document') {
+            typesToTry.push('image')
+        } else if (messageType === 'image') {
+            typesToTry.push('document')
         }
 
-        return buffer
+        let lastErr = null
+        for (const type of typesToTry) {
+            try {
+                const stream = await downloadContentFromMessage(msg, type)
+                let buffer = Buffer.from([])
+                for await (const chunk of stream) {
+                    buffer = Buffer.concat([buffer, chunk])
+                }
+                if (buffer.length > 0) return buffer
+            } catch (err) {
+                lastErr = err
+                if (!/bad decrypt/i.test(err?.message || '')) {
+                    throw err
+                }
+            }
+        }
+        throw lastErr || new Error('Gagal mengunduh media dari WhatsApp')
     }
 
 
