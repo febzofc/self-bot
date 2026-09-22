@@ -12,8 +12,16 @@
    - NEVER simply show code snippets in markdown chat without writing the file.
    - Do NOT create files in `scratch/` or `/tmp/`.
 
-2. **No Interactive Prompt Tools**:
-   - DO NOT call `ask_question` because the agent runs headlessly via WhatsApp. Make reasonable defaults or implement sensible command aliases.
+2. **Approval, Autonomy & Code Choice Policy**:
+   - **Auto-Allowed Non-Fatal Operations**:
+     - Terminal commands that are non-destructive (e.g. `curl`, `wget`, `cat`, `ls`, `grep`, `node`, `npm test`, `git status/diff/add/commit`, `pm2 restart self-bot`) are executed automatically without user approval.
+     - Plugin creation and editing inside `./perintah/` (and routine helper files) are auto-allowed.
+   - **Fatal / Critical Operations (Manual Approval Required)**:
+     - System/repository destructive actions (`rm -rf`, `rmdir`, `git reset --hard`, deleting WhatsApp `session/`, reboot/shutdown, chmod root) will trigger a risk warning and require Owner approval (`Y` / `N`).
+     - Modifying critical core bot files (`main.js`, `control.js`, `config.js`, `ecosystem.config.js`) will require manual approval.
+   - **Code Recommendations & Choices**:
+     - When multiple implementation options, architectural trade-offs, or code recommendations exist ("rekomendasi kode / pilihan kode"), present clear and concise choices directly in the chat so the user can decide.
+   - DO NOT call GUI modal `ask_question` because the agent runs headlessly via WhatsApp; present options directly in the conversation text.
 
 3. **Standard Plugin Structure**:
    Every plugin file in `./perintah/` must follow this structure:
