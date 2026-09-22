@@ -1,5 +1,6 @@
 const axios = require('axios');
 const aiRouter = require('../lib/aiSwitchRouter.js');
+const exprManager = require('../lib/expressionManager.js');
 
 // Sesi percakapan bersama
 const aiSessions = aiRouter.sharedSessions;
@@ -106,6 +107,12 @@ module.exports = {
             aiRouter.recordTurn(m.chat, text, replyText, 'qwq');
 
             await m.reply(replyText);
+
+            // Reaksi stiker ekspresi otomatis (peluang 35%)
+            exprManager.maybeSendExpressionSticker(bob, m, text, replyText, 0.35).catch(errExp => {
+                console.error('[search_ai] Error sticker reaction:', errExp);
+            });
+
             return true;
         } catch (error) {
             console.error('Error handling AI session message:', error);
@@ -164,7 +171,13 @@ module.exports = {
                     }
                     const replyText = await getAiResponse(extraQuery, session.history);
                     aiRouter.recordTurn(m.chat, extraQuery, replyText, 'qwq');
-                    return m.reply(replyText);
+                    await m.reply(replyText);
+
+                    // Reaksi stiker ekspresi otomatis (peluang 35%)
+                    exprManager.maybeSendExpressionSticker(bob, m, extraQuery, replyText, 0.35).catch(errExp => {
+                        console.error('[search_ai] Error sticker reaction:', errExp);
+                    });
+                    return;
                 } catch (err) {
                     return m.reply('❌ Gagal memproses pesan: ' + err.message);
                 }
@@ -199,7 +212,13 @@ module.exports = {
                 }
                 const replyText = await getAiResponse(argText, session.history);
                 aiRouter.recordTurn(m.chat, argText, replyText, 'qwq');
-                return m.reply(replyText);
+                await m.reply(replyText);
+
+                // Reaksi stiker ekspresi otomatis (peluang 35%)
+                exprManager.maybeSendExpressionSticker(bob, m, argText, replyText, 0.35).catch(errExp => {
+                    console.error('[search_ai] Error sticker reaction:', errExp);
+                });
+                return;
             } catch (err) {
                 console.error('Error on single AI query:', err);
                 return m.reply('❌ Terjadi kesalahan saat memproses permintaan: ' + err.message);
