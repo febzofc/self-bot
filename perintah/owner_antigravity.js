@@ -3,6 +3,7 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const aiRouter = require('../lib/aiSwitchRouter.js');
 
 /**
  * Antigravity CLI Controller & Session Manager (Clean Text / Zero-Emoji Edition)
@@ -21,8 +22,8 @@ const DEFAULT_BRIDGE_PORT = 39281;
 let activeBridgePort = DEFAULT_BRIDGE_PORT;
 let bridgeServer = null;
 
-// Sesi percakapan per chat: Map(chatId => { conversationId, isInteractive, lastActive })
-const sessions = new Map();
+// Sesi percakapan bersama per chat: Map(chatId => { conversationId, isInteractive, lastActive, history })
+const sessions = aiRouter.sharedSessions;
 
 // Task yang sedang berjalan per chat: Map(chatId => taskState)
 const activeTasks = new Map();
@@ -789,7 +790,7 @@ module.exports = {
         // 3. SESI INTERAKTIF (Chat tanpa prefix jika --sesi aktif)
         const session = sessions.get(m.chat);
         if (session && session.isInteractive && !isCmd && !text.startsWith('.')) {
-            module.exports.executeTask(bob, m, text, { isCreator: true, prefix });
+            module.exports.dispatch(bob, m, text, { isCreator: true, prefix });
             return true;
         }
 
@@ -815,66 +816,100 @@ module.exports = {
         if (!cleanText) {
             const sess = sessions.get(m.chat);
             return m.reply(
-                `*Antigravity CLI Controller*\n` +
+                `*Antigravity CLI & AI Controller*\n` +
                 `----------------------------------------\n` +
                 `*Perintah:*\n` +
                 `*${prefix + command} <instruksi>*\n` +
-                `_Contoh: ${prefix + command} periksa kode dan jalankan test_\n\n` +
-                `*Sesi Chat:*\n` +
+                `_Contoh: ${prefix + command} buatkan plugin kalkulator_\n` +
+                `_Contoh: ${prefix + command} halo bro lagi apa (otomatis hemat token via QwQ)_\n\n` +
+                `*Fitur Auto-Switch Cerdas:*\n` +
+                `• Obrolan santai/chitchat otomatis menggunakan model QwQ-32B untuk menghemat token Antigravity.\n` +
+                `• Coding, search web, & eksekusi terminal otomatis dialihkan ke Antigravity CLI.\n` +
+                `• Sesi riwayat percakapan tersambung mulus dalam 1 konteks obrolan.\n\n` +
+                `*Sesi Chat Interaktif:*\n` +
                 `*${prefix + command} --sesi*\n` +
-                `_Masuk mode chat interaktif (bisa chat langsung tanpa prefix)._\n\n` +
+                `_Masuk mode chat langsung tanpa prefix._\n\n` +
                 `*${prefix + command} --stop*\n` +
                 `_Keluar dari mode sesi chat interaktif._\n\n` +
                 `*${prefix + command} --reset*\n` +
-                `_Reset riwayat percakapan (mulai obrolan baru)._\n\n` +
+                `_Reset riwayat percakapan dan mulai dari awal._\n\n` +
                 `*Monitoring Progres:*\n` +
                 `*/btw* atau *${prefix}btw*\n` +
-                `_Cek status live progress task yang sedang berjalan._\n\n` +
-                `*/btw <pertanyaan>*\n` +
-                `_Tanya perkembangan tugas di tengah proses._\n\n` +
+                `_Cek status live progress task Antigravity yang sedang berjalan._\n\n` +
                 `*Keamanan:* Aksi kritis memerlukan persetujuan WhatsApp (Y/N).\n` +
-                `*Status Sesi:* ${sess?.conversationId ? `Aktif (\`${sess.conversationId.slice(0, 8)}...\`)` : 'Belum aktif'}`
+                `*Status Sesi:* ${sess?.conversationId ? `Aktif (\`${sess.conversationId.slice(0, 8)}...\`)` : (sess?.history?.length ? `Aktif (${sess.history.length / 2} pesan tersimpan)` : 'Belum aktif')}`
             );
         }
 
         // 2. Mode Kontrol Sesi
         if (cleanText === '--stop') {
-            const sess = sessions.get(m.chat);
-            if (sess) sess.isInteractive = false;
+            aiRouter.stopInteractive(m.chat);
             return m.reply('*Sesi Interaktif Dinonaktifkan.*\nGunakan prefix seperti biasa untuk menjalankan perintah.');
         }
 
         if (cleanText === '--reset') {
-            sessions.delete(m.chat);
+            aiRouter.resetSession(m.chat);
             return m.reply('*Konteks Percakapan Direset.*\nPercakapan berikutnya akan dimulai sebagai sesi baru.');
         }
 
         if (cleanText.startsWith('--sesi')) {
-            let sess = sessions.get(m.chat);
-            if (!sess) {
-                sess = { conversationId: null, isInteractive: true };
-                sessions.set(m.chat, sess);
-            } else {
-                sess.isInteractive = true;
-            }
+            const sess = aiRouter.getOrCreateSession(m.chat);
+            sess.isInteractive = true;
 
             const initialPrompt = cleanText.replace('--sesi', '').trim();
             if (initialPrompt) {
-                await m.reply('*Sesi Interaktif Aktif*\n_Memproses instruksi Anda..._');
-                return module.exports.executeTask(bob, m, initialPrompt, { isCreator: true, prefix });
+                await m.reply('*Sesi Interaktif Aktif*\n_Memproses pesan Anda..._');
+                return module.exports.dispatch(bob, m, initialPrompt, { isCreator: true, prefix });
             } else {
                 return m.reply(
-                    `*Sesi Interaktif Antigravity Dimulai*\n\n` +
-                    `Anda dapat langsung mengirim instruksi coding *(tanpa prefix)*.\n` +
-                    `Gunakan */btw* kapan saja untuk memeriksa progres.\n` +
+                    `*Sesi Interaktif Antigravity & AI Dimulai*\n\n` +
+                    `Anda dapat langsung mengobrol atau mengirim instruksi coding *(tanpa prefix)*.\n` +
+                    `• Obrolan santai otomatis menggunakan model alternatif (hemat token).\n` +
+                    `• Coding & pencarian web otomatis ditangani oleh Antigravity CLI.\n` +
+                    `• Riwayat percakapan tetap tersambung secara seamless.\n\n` +
+                    `Gunakan */btw* kapan saja untuk memeriksa progres task.\n` +
                     `Ketik *${prefix + command} --stop* untuk keluar dari sesi.\n` +
                     `Ketik *${prefix + command} --reset* untuk mereset riwayat sesi.`
                 );
             }
         }
 
-        // 3. Jalankan Task Biasa
-        return module.exports.executeTask(bob, m, cleanText, { isCreator: true, prefix });
+        // 3. Jalankan melalui dispatcher pintar (Auto-Switch)
+        return module.exports.dispatch(bob, m, cleanText, { isCreator: true, prefix });
+    },
+
+    /**
+     * Dispatcher pintar: Auto-switch antara QwQ-32B dan Antigravity CLI
+     * - Obrolan santai / chitchat: QwQ-32B API (hemat token Antigravity)
+     * - Tugas berat / coding / search web / VPS: Antigravity CLI (agy)
+     * - Riwayat obrolan tersambung dalam 1 sesi terpadu
+     */
+    dispatch: async (bob, m, promptText, { isCreator, prefix, forceAgy = false }) => {
+        const session = aiRouter.getOrCreateSession(m.chat);
+        const text = (promptText || '').trim();
+        if (!text) return;
+
+        // Cek apakah instruksi memerlukan Antigravity CLI
+        const needsAgy = forceAgy || aiRouter.needsAntigravity(text, session.history);
+
+        if (needsAgy) {
+            // Jalankan Antigravity CLI untuk coding, edit file, browsing internet, VPS/Terminal
+            return module.exports.executeTask(bob, m, text, { isCreator, prefix, session });
+        }
+
+        // Jalankan model AI QwQ-32B untuk obrolan santai (hemat token Antigravity)
+        try {
+            if (bob?.sendPresenceUpdate) {
+                await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
+            }
+            const replyText = await aiRouter.fetchQwQ(text, session.history);
+            aiRouter.recordTurn(m.chat, text, replyText, 'qwq');
+            return m.reply(replyText);
+        } catch (err) {
+            console.error('[Auto-Switch QwQ Error]:', err.message);
+            // Fallback otomatis ke Antigravity jika API eksternal mengalami kendala
+            return module.exports.executeTask(bob, m, text, { isCreator, prefix, session });
+        }
     },
 
     /**
@@ -948,10 +983,12 @@ module.exports = {
             `- KEBIJAKAN PERSETUJUAN & AUTONOMI:\n` +
             `  * Eksekusi terminal non-fatal (curl, wget, node, npm test, git status/add/commit, cat, ls) dan penulisan/pengeditan plugin di './perintah/' SUDAH DISETUJUI OTOMATIS oleh sistem tanpa memerlukan konfirmasi manual.\n` +
             `  * HANYA aksi fatal/destruktif (seperti rm -rf, git reset --hard, modifikasi file inti bot seperti main.js/control.js/config.js, atau manipulasi sistem) yang memicu konfirmasi izin manual.\n` +
-            `  * Jika terdapat beberapa opsi pendekatan kode, arsitektur alternatif, atau butuh pertimbangan pengguna ("rekomendasi kode / pilihan kode"), sampaikan opsi-opsi tersebut dan berikan rekomendasi terbaik Anda secara jelas dan ringkas di pesan chat agar pengguna dapat memilihnya.\n\n` +
+            `  * Jika terdapat beberapa opsi pendekatan kode, arsitektur alternatif, atau butuh pertimbangan pengguna ("rekomendasi kode / pilihan kode"), sampaikan opsi-opsi tersebut dan berikan rekomendasi terbaik Anda secara jelas dan ringkas di pesan chat agar pengguna dapat memilihnya.\n` +
+            `- GAYA BICARA & KARAKTER: Berikan penjelasan dan respon dengan bahasa santai gaul tongkrongan Indonesia (lu, gua, wir), sedikit tengil dan akrab tapi tetap handal dan presisi dalam hal kode. HINDARI bahasa kaku/formal seperti robot atau asisten korporat agar obrolan terasa natural dan tidak terlihat ke-ai-ai-an.\n\n` +
             `[INSTRUKSI PENGGUNA]:\n`;
 
-        const fullPrompt = session.conversationId ? promptText : `${systemPrefix}${promptText}`;
+        const contextPrompt = aiRouter.buildContextForAntigravity(session.history, promptText);
+        const fullPrompt = session.conversationId ? contextPrompt : `${systemPrefix}${contextPrompt}`;
 
         const cliArgs = [
             '--add-dir', process.cwd(),
@@ -1093,9 +1130,11 @@ module.exports = {
             // Kirim respon akhir secara UTUH sebagai gelembung pesan chat biasa (BUKAN dokumen .txt)
             const outputToSend = (finalResponseText || '').trim();
             if (outputToSend) {
+                aiRouter.recordTurn(m.chat, promptText, outputToSend, 'agy');
                 await sendFullTextResponse(bob, m.chat, outputToSend, m);
             } else {
                 if (code === 0) {
+                    aiRouter.recordTurn(m.chat, promptText, 'Tugas telah selesai dilaksanakan.', 'agy');
                     await m.reply('Tugas telah selesai dilaksanakan.');
                 } else {
                     await m.reply(`[Antigravity CLI keluar dengan kode status: ${code}]`);

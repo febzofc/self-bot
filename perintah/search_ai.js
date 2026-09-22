@@ -1,17 +1,12 @@
 const axios = require('axios');
+const aiRouter = require('../lib/aiSwitchRouter.js');
 
-// Penyimpanan sesi AI di memori
-// Key: sessionId (string) -> Value: { history: Array, timer: Timeout, lastActive: number }
-const aiSessions = new Map();
-const SESSION_TIMEOUT = 5 * 60 * 1000; // 5 Menit (300.000 ms)
-
-// Konfigurasi cache sesi agar tidak terlalu panjang
-const MAX_HISTORY_TURNS = 3; // Maksimal 3 pasang percakapan terakhir (User & AI)
-const MAX_AI_HISTORY_CHARS = 180; // Truncate jawaban AI lama di riwayat agar URL query tetap ringkas
+// Sesi percakapan bersama
+const aiSessions = aiRouter.sharedSessions;
+const SESSION_TIMEOUT = 10 * 60 * 1000; // 10 Menit
 
 /**
- * Panggil API Deep-AI
- * Endpoint: https://api-faa.my.id/faa/deep-ai?text=...
+ * Fallback API Deep-AI jika QwQ sedang offline
  */
 async function fetchDeepAi(promptText) {
     const res = await axios.get('https://api-faa.my.id/faa/deep-ai', {
@@ -19,7 +14,7 @@ async function fetchDeepAi(promptText) {
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         },
-        timeout: 45000
+        timeout: 35000
     });
 
     if (res.data && res.data.result) {
@@ -29,33 +24,25 @@ async function fetchDeepAi(promptText) {
 }
 
 /**
- * Membentuk string prompt dengan cache konteks percakapan yang ringkas
+ * Dapatkan respon AI dengan prioritas QwQ-32B (tengil & joms jomok persona)
  */
-function buildContextPrompt(history, newQuestion) {
-    if (!history || history.length === 0) {
-        return newQuestion;
+async function getAiResponse(text, history = []) {
+    try {
+        const reply = await aiRouter.fetchQwQ(text, history);
+        if (reply) return reply;
+    } catch (e) {
+        console.error('[search_ai] QwQ API error, fallback to Deep-AI:', e.message);
     }
 
-    let context = 'Gunakan ringkasan konteks percakapan sebelumnya jika relevan:\n';
-    for (const turn of history) {
-        if (turn.role === 'user') {
-            context += `User: ${turn.content}\n`;
-        } else if (turn.role === 'assistant') {
-            const shortAi = turn.content.length > MAX_AI_HISTORY_CHARS
-                ? turn.content.slice(0, MAX_AI_HISTORY_CHARS) + '...'
-                : turn.content;
-            context += `AI: ${shortAi}\n`;
-        }
-    }
-    context += `\nPertanyaan user sekarang:\n${newQuestion}`;
-    return context;
+    // Fallback ke Deep-AI jika QwQ mengalami kendala
+    return await fetchDeepAi(text);
 }
 
 /**
- * Mengatur atau memperbarui timer 5 menit auto-close
+ * Reset timer sesi percakapan
  */
 function refreshSessionTimer(bob, chatId, sessionId) {
-    const session = aiSessions.get(sessionId);
+    const session = aiRouter.getOrCreateSession(sessionId);
     if (!session) return;
 
     if (session.timer) {
@@ -63,14 +50,12 @@ function refreshSessionTimer(bob, chatId, sessionId) {
     }
 
     session.timer = setTimeout(async () => {
-        aiSessions.delete(sessionId);
+        aiRouter.stopInteractive(sessionId);
         try {
             await bob.sendMessage(chatId, {
-                text: '⏱️ *Sesi AI Ditutup Otomatis*\nSesi interaktif AI telah berakhir karena tidak ada aktivitas selama 5 menit.\nKetik `.ai --sesi` jika ingin memulai sesi baru.'
+                text: '⏱️ *Sesi AI Ditutup Otomatis*\nSesi interaktif AI telah berakhir karena tidak ada aktivitas selama 10 menit.\nKetik `.ai --sesi` jika ingin memulai obrolan baru.'
             });
-        } catch (err) {
-            console.error('Error saat mengirim notifikasi auto-close AI session:', err);
-        }
+        } catch (err) {}
     }, SESSION_TIMEOUT);
 }
 
@@ -80,11 +65,9 @@ module.exports = {
     categori: 'search',
 
     /**
-     * Hook before: Dijalankan sebelum perintah utama.
-     * Mengintercept pesan biasa saat user sedang dalam sesi AI aktif.
+     * Hook before: Intercept obrolan saat sesi interaktif aktif
      */
-    before: async (m, { bob, body, budy, isCmd, prefix }) => {
-        // Jangan trigger jika pesan adalah perintah bot ber-prefix (agar tidak mengganggu perintah umum)
+    before: async (m, { bob, body, budy, isCmd, prefix, isCreator, isOwner }) => {
         if (isCmd) return false;
         if (!m || m.isBaileys || m.fromMe) return false;
 
@@ -92,126 +75,152 @@ module.exports = {
         if (!text) return false;
 
         const sessionId = m.isGroup ? `${m.chat}_${m.sender}` : m.chat;
-        if (!aiSessions.has(sessionId)) return false;
+        const session = aiSessions.get(sessionId) || aiSessions.get(m.chat);
+        if (!session || !session.isInteractive) return false;
 
-        // User sedang berada dalam sesi AI aktif!
-        const session = aiSessions.get(sessionId);
-
-        // Reset timer 5 menit agar tidak kedaluwarsa
+        // Reset timer sesi
         refreshSessionTimer(bob, m.chat, sessionId);
 
+        // Jika user adalah owner dan permintaannya butuh Antigravity (coding/vps/search web)
+        const ownerAuth = isCreator || isOwner;
+        if (ownerAuth && aiRouter.needsAntigravity(text, session.history)) {
+            try {
+                const agyPlugin = require('./owner_antigravity.js');
+                if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
+                    agyPlugin.executeTask(bob, m, text, { isCreator: true, prefix, session });
+                    return true;
+                }
+            } catch (e) {
+                console.error('Error forwarding to Antigravity:', e);
+            }
+        }
+
         try {
-            // Susun prompt dengan cache riwayat percakapan yang ringkas
-            const contextualPrompt = buildContextPrompt(session.history, text);
-
-            const replyText = await fetchDeepAi(contextualPrompt);
-
-            // Simpan ke cache riwayat percakapan
-            session.history.push({ role: 'user', content: text });
-            session.history.push({ role: 'assistant', content: replyText });
-
-            // Batasi panjang riwayat agar tidak melebihi kapasitas
-            if (session.history.length > MAX_HISTORY_TURNS * 2) {
-                session.history = session.history.slice(-MAX_HISTORY_TURNS * 2);
+            if (bob?.sendPresenceUpdate) {
+                await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
             }
 
+            const replyText = await getAiResponse(text, session.history);
+
+            // Simpan ke riwayat percakapan sesi
+            aiRouter.recordTurn(m.chat, text, replyText, 'qwq');
+
             await m.reply(replyText);
-            return true; // Pesan berhasil ditangani oleh sesi AI
+            return true;
         } catch (error) {
             console.error('Error handling AI session message:', error);
-            await m.reply('❌ Maaf, terjadi kesalahan saat menghubungi server AI. Coba tanyakan lagi.');
+            await m.reply('❌ Waduh wir lagi agak ngelag nih, coba kirim lagi pesan lu.');
             return true;
         }
     },
 
     /**
-     * Exec: Dijalankan saat user mengetik perintah dengan prefix (misal: .ai)
+     * Exec: Dijalankan saat user mengetik .ai <pesan>
      */
-    exec: async (m, { bob, args, text, prefix, command }) => {
+    exec: async (m, { bob, args, text, prefix, command, isCreator, isOwner }) => {
         const sessionId = m.isGroup ? `${m.chat}_${m.sender}` : m.chat;
         const argText = (text || '').trim();
+        const ownerAuth = isCreator || isOwner;
 
-        // Sub-opsi: Menghentikan / menutup sesi secara manual (.ai --stop / .ai --keluar / .ai --end)
+        // Sub-opsi: Menghentikan / menutup sesi
         if (argText === '--stop' || argText === '--keluar' || argText === '--end' || argText === '--close') {
-            if (aiSessions.has(sessionId)) {
-                const session = aiSessions.get(sessionId);
+            const session = aiSessions.get(sessionId) || aiSessions.get(m.chat);
+            if (session && session.isInteractive) {
                 if (session.timer) clearTimeout(session.timer);
-                aiSessions.delete(sessionId);
-                return m.reply('✅ *Sesi AI Telah Diakhiri*\nCache percakapan telah dibersihkan.');
+                aiRouter.stopInteractive(sessionId);
+                aiRouter.stopInteractive(m.chat);
+                return m.reply('✅ *Sesi AI Telah Dinonaktifkan*\nKetik prefix seperti biasa untuk menjalankan perintah.');
             } else {
-                return m.reply('ℹ️ Kamu saat ini tidak sedang berada dalam sesi AI.');
+                return m.reply('ℹ️ Kamu saat ini tidak sedang berada dalam sesi chat AI.');
             }
         }
 
-        // Opsi 2: .ai --sesi (Memulai mode percakapan interaktif)
+        // Sub-opsi: Reset riwayat sesi
+        if (argText === '--reset') {
+            aiRouter.resetSession(sessionId);
+            aiRouter.resetSession(m.chat);
+            return m.reply('✅ *Konteks & Riwayat Sesi AI Direset.*');
+        }
+
+        // Sub-opsi: Memulai sesi interaktif
         if (argText.startsWith('--sesi')) {
             const extraQuery = argText.replace(/^--sesi\s*/i, '').trim();
-
-            // Bersihkan timer sesi lama jika ada
-            if (aiSessions.has(sessionId)) {
-                const existing = aiSessions.get(sessionId);
-                if (existing.timer) clearTimeout(existing.timer);
-            }
-
-            // Buat sesi baru
-            const newSession = {
-                history: [],
-                timer: null,
-                startedAt: Date.now()
-            };
-            aiSessions.set(sessionId, newSession);
+            const session = aiRouter.getOrCreateSession(sessionId);
+            session.isInteractive = true;
             refreshSessionTimer(bob, m.chat, sessionId);
 
-            // Jika user langsung menyertakan pertanyaan pertama (contoh: .ai --sesi halo)
             if (extraQuery) {
+                // Jika owner meminta tugas coding/terminal via .ai
+                if (ownerAuth && aiRouter.needsAntigravity(extraQuery, session.history)) {
+                    const agyPlugin = require('./owner_antigravity.js');
+                    if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
+                        return agyPlugin.executeTask(bob, m, extraQuery, { isCreator: true, prefix, session });
+                    }
+                }
+
                 try {
-                    await m.reply('🤖 *Sesi AI Dimulai!*\n_Sedang memproses pertanyaan pertama..._');
-                    const replyText = await fetchDeepAi(extraQuery);
-
-                    newSession.history.push({ role: 'user', content: extraQuery });
-                    newSession.history.push({ role: 'assistant', content: replyText });
-
+                    if (bob?.sendPresenceUpdate) {
+                        await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
+                    }
+                    const replyText = await getAiResponse(extraQuery, session.history);
+                    aiRouter.recordTurn(m.chat, extraQuery, replyText, 'qwq');
                     return m.reply(replyText);
                 } catch (err) {
-                    console.error('Error on initial AI session query:', err);
-                    return m.reply('❌ Gagal memproses pertanyaan: ' + err.message);
+                    return m.reply('❌ Gagal memproses pesan: ' + err.message);
                 }
             } else {
                 return m.reply(
-                    `🤖 *Sesi AI Interaktif Dimulai!*\n\n` +
-                    `Kamu sekarang berada dalam mode percakapan dengan AI:\n` +
-                    `• Kirim pesan apa saja *(tanpa prefix)* untuk mengobrol.\n` +
-                    `• Perintah umum bot ber-prefix (seperti *${prefix}menu*) tetap berfungsi normal.\n` +
+                    `🤖 *Sesi Interaktif AI & Antigravity Dimulai!*\n\n` +
+                    `Kamu sekarang berada dalam mode percakapan langsung *(tanpa prefix)*:\n` +
+                    `• Obrolan santai otomatis menggunakan model alternatif (hemat token).\n` +
+                    `• Coding & search web otomatis ditangani secara presisi.\n` +
                     `• Ketik *${prefix + command} --stop* untuk mengakhiri sesi.\n` +
-                    `• Sesi akan otomatis ditutup jika tidak aktif selama *5 menit*.`
+                    `• Ketik *${prefix + command} --reset* untuk mereset riwayat sesi.\n` +
+                    `• Sesi akan otomatis berakhir jika tidak aktif selama *10 menit*.`
                 );
             }
         }
 
-        // Opsi 1: Tanya satu kali saja (.ai <pertanyaan>)
+        // Tanya satu kali saja (.ai <pertanyaan>)
         if (argText.length > 0) {
+            const session = aiRouter.getOrCreateSession(sessionId);
+
+            // Jika owner meminta coding / search web melalui .ai
+            if (ownerAuth && aiRouter.needsAntigravity(argText, session.history)) {
+                const agyPlugin = require('./owner_antigravity.js');
+                if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
+                    return agyPlugin.executeTask(bob, m, argText, { isCreator: true, prefix, session });
+                }
+            }
+
             try {
-                // Langsung jawab pertanyaan satu kali tanpa masuk atau menyimpan sesi
-                const replyText = await fetchDeepAi(argText);
+                if (bob?.sendPresenceUpdate) {
+                    await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
+                }
+                const replyText = await getAiResponse(argText, session.history);
+                aiRouter.recordTurn(m.chat, argText, replyText, 'qwq');
                 return m.reply(replyText);
             } catch (err) {
                 console.error('Error on single AI query:', err);
-                return m.reply('❌ Terjadi kesalahan saat memproses permintaan AI: ' + err.message);
+                return m.reply('❌ Terjadi kesalahan saat memproses permintaan: ' + err.message);
             }
         }
 
-        // Tampilkan panduan penggunaan jika user hanya mengetik .ai
+        // Panduan penggunaan
+        const sess = aiSessions.get(sessionId) || aiSessions.get(m.chat);
         return m.reply(
-            `🤖 *Panduan Penggunaan DeepSeek AI*\n\n` +
-            `1️⃣ *Tanya Satu Kali:*\n` +
-            `• *${prefix + command} <pertanyaan>*\n` +
-            `_Contoh: ${prefix + command} apa yang terjadi ketika dua atom bertabrakan?_\n\n` +
+            `🤖 *AI & Antigravity Smart Assistant*\n\n` +
+            `1️⃣ *Tanya Langsung:*\n` +
+            `• *${prefix + command} <pertanyaan / instruksi>*\n` +
+            `_Contoh: ${prefix + command} halo wir lagi ngapain_\n` +
+            `_Contoh: ${prefix + command} buatkan plugin kalkulator_\n\n` +
             `2️⃣ *Mode Sesi Percakapan:*\n` +
             `• *${prefix + command} --sesi*\n` +
-            `_Masuk ke sesi interaktif. Kamu bisa langsung mengobrol tanpa prefix dan memiliki riwayat konteks percakapan._\n\n` +
-            `3️⃣ *Keluar Dari Sesi:*\n` +
-            `• *${prefix + command} --stop*\n\n` +
-            `⏱️ _Catatan: Sesi percakapan akan otomatis berakhir jika tidak digunakan selama 5 menit._`
+            `_Mengobrol langsung tanpa prefix dengan riwayat obrolan tersambung._\n\n` +
+            `3️⃣ *Kontrol Sesi:*\n` +
+            `• *${prefix + command} --stop* (Keluar dari sesi interaktif)\n` +
+            `• *${prefix + command} --reset* (Mulai sesi baru dari nol)\n\n` +
+            `*Status Sesi:* ${sess?.isInteractive ? 'Aktif' : 'Nonaktif'}`
         );
     }
 };
