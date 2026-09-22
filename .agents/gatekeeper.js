@@ -2,6 +2,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 let inputBuffer = '';
 process.stdin.setEncoding('utf8');
@@ -31,6 +32,8 @@ process.stdin.on('end', () => {
     }
 
     const candidatePortFiles = [
+        '/tmp/.agy_bridge_port',
+        path.join(os.homedir(), '.gemini', 'antigravity-cli', '.bridge_port'),
         path.join(__dirname, '../.bridge_port'),
         path.join(__dirname, '.bridge_port'),
         path.join(process.cwd(), '.agents/.bridge_port'),

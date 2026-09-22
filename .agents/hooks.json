@@ -5,7 +5,7 @@
         "matcher": "run_command|write_to_file|replace_file_content|multi_replace_file_content|sed_file|notebook_execution",
         "hooks": [
           {
-            "command": "node hooks/gatekeeper.js 2>/dev/null || node gatekeeper.js",
+            "command": "node \"/root/self-bot/.agents/gatekeeper.js\"",
             "timeout": 130
           }
         ]

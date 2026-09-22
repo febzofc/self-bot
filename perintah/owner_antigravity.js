@@ -59,33 +59,17 @@ function findAgyBinary() {
 function ensureAgentHooks() {
     const agentsDir = path.join(process.cwd(), '.agents');
     const hooksDir = path.join(agentsDir, 'hooks');
+    const homedir = os.homedir();
 
     if (!fs.existsSync(hooksDir)) {
         fs.mkdirSync(hooksDir, { recursive: true });
     }
 
-    const hooksJsonPath = path.join(agentsDir, 'hooks.json');
-    const hooksConfig = {
-        "permission-gate": {
-            "PreToolUse": [
-                {
-                    "matcher": "run_command|write_to_file|replace_file_content|multi_replace_file_content|sed_file|notebook_execution",
-                    "hooks": [
-                        {
-                            "command": "node hooks/gatekeeper.js 2>/dev/null || node gatekeeper.js",
-                            "timeout": 130
-                        }
-                    ]
-                }
-            ]
-        }
-    };
-    fs.writeFileSync(hooksJsonPath, JSON.stringify(hooksConfig, null, 2), 'utf8');
-
     const gatekeeperCode = `#!/usr/bin/env node
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 let inputBuffer = '';
 process.stdin.setEncoding('utf8');
@@ -115,6 +99,8 @@ process.stdin.on('end', () => {
     }
 
     const candidatePortFiles = [
+        '/tmp/.agy_bridge_port',
+        path.join(os.homedir(), '.gemini', 'antigravity-cli', '.bridge_port'),
         path.join(__dirname, '../.bridge_port'),
         path.join(__dirname, '.bridge_port'),
         path.join(process.cwd(), '.agents/.bridge_port'),
@@ -190,6 +176,38 @@ process.stdin.on('end', () => {
     const p2 = path.join(agentsDir, 'gatekeeper.js');
     fs.writeFileSync(p1, gatekeeperCode, { mode: 0o755 });
     fs.writeFileSync(p2, gatekeeperCode, { mode: 0o755 });
+
+    const gatekeeperPath = p2;
+    const hooksConfig = {
+        "permission-gate": {
+            "PreToolUse": [
+                {
+                    "matcher": "run_command|write_to_file|replace_file_content|multi_replace_file_content|sed_file|notebook_execution",
+                    "hooks": [
+                        {
+                            "command": `node "${gatekeeperPath}"`,
+                            "timeout": 130
+                        }
+                    ]
+                }
+            ]
+        }
+    };
+    const hooksJsonStr = JSON.stringify(hooksConfig, null, 2);
+
+    const targetHooksPaths = [
+        path.join(agentsDir, 'hooks.json'),
+        path.join(homedir, '.gemini', 'config', 'hooks.json'),
+        path.join(homedir, '.gemini', 'antigravity-cli', 'hooks.json')
+    ];
+
+    for (const hp of targetHooksPaths) {
+        try {
+            const dir = path.dirname(hp);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(hp, hooksJsonStr, 'utf8');
+        } catch (e) {}
+    }
 }
 
 /**
@@ -230,10 +248,18 @@ function startBridgeServer() {
     bridgeServer.listen(DEFAULT_BRIDGE_PORT, '127.0.0.1', () => {
         activeBridgePort = bridgeServer.address().port;
         bridgeServer.unref();
-        const portFilePath = path.join(process.cwd(), '.agents', '.bridge_port');
-        try {
-            fs.writeFileSync(portFilePath, activeBridgePort.toString(), 'utf8');
-        } catch (e) {}
+        const portFiles = [
+            path.join(process.cwd(), '.agents', '.bridge_port'),
+            '/tmp/.agy_bridge_port',
+            path.join(os.homedir(), '.gemini', 'antigravity-cli', '.bridge_port')
+        ];
+        for (const pf of portFiles) {
+            try {
+                const dir = path.dirname(pf);
+                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                fs.writeFileSync(pf, activeBridgePort.toString(), 'utf8');
+            } catch (e) {}
+        }
     });
 }
 
@@ -751,10 +777,22 @@ module.exports = {
         };
         activeTasks.set(m.chat, taskState);
 
+        const systemPrefix = 
+            `[SISTEM WORKSPACE WHATSAPP BOT - /root/self-bot]\n` +
+            `Anda adalah asisten AI coding untuk repository WhatsApp bot Baileys ini.\n` +
+            `- Jika pengguna meminta membuat fitur, perintah, atau plugin baru, Anda WAJIB membuat filenya secara nyata di folder './perintah/<nama_plugin>.js' menggunakan tool write_to_file.\n` +
+            `- Format plugin: export object dengan 'CmD', 'aliases', 'categori', dan method 'exec(m, { bob, args, text, prefix, command, isCreator, isOwner, quoted, qmsg, budy })'.\n` +
+            `- JANGAN HANYA MENAMPILKAN KODE DI CHAT. Anda harus menuliskan file ke sistem.\n` +
+            `- JANGAN gunakan tool 'ask_question' karena sesi ini berjalan non-interaktif.\n\n` +
+            `[INSTRUKSI PENGGUNA]:\n`;
+
+        const fullPrompt = session.conversationId ? promptText : `${systemPrefix}${promptText}`;
+
         const cliArgs = [
+            '--add-dir', process.cwd(),
             '--dangerously-skip-permissions',
             '--output-format', 'stream-json',
-            '-p', promptText
+            '-p', fullPrompt
         ];
 
         if (session.conversationId) {
