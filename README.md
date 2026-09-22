@@ -1,10 +1,37 @@
-# Cimo Self-Bot 🤖 (v1.4.0)
+# Cimo Self-Bot (v2.0.0)
 
-Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk penggunaan pribadi (self-bot) dan grup chat. Bot ini menggunakan arsitektur modular berbasis plugin yang mempermudah penambahan fitur baru, serta dilengkapi dengan dashboard web monitoring, Web Player Streaming Anime, Web TV, Integrasi Server Minecraft ServerTap.io, Social Media Stalkers (Instagram & TikTok), dan Smartphone Specification Engine.
+Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk penggunaan pribadi (self-bot) dan grup chat. Bot ini menggunakan arsitektur modular berbasis plugin yang mempermudah penambahan fitur baru, serta dilengkapi dengan integrasi AI Developer Google Antigravity CLI (AGY), dashboard web monitoring, Web Player Streaming Anime, Web TV, Integrasi Server Minecraft ServerTap.io, Social Media Stalkers (Instagram & TikTok), dan Smartphone Specification Engine.
 
 ---
 
-## 🚀 Fitur Unggulan Versi Terbaru (v1.4.0)
+## Fitur Unggulan Versi Terbaru (v2.0.0 - Antigravity Integration)
+
+### 1. Google Antigravity (AGY) CLI Full Integration & Controller (`.agy` / `.antigravity` / `.btw`)
+- **Jembatan WhatsApp ke AI Developer Agent Antigravity:** Menghubungkan bot WhatsApp langsung ke runtime Antigravity CLI di VPS untuk mengeksekusi instruksi coding, inspeksi file, debugging, testing, pembuatan dokumen, dan manajemen task.
+- **Sistem Sesi Multi-Turn & Interaktif:**
+  - Konteks percakapan coding tetap tersimpan per chat menggunakan `conversationId` Antigravity.
+  - Mode sesi interaktif (`.agy --sesi`) memungkinkan chat instruksi langsung tanpa perlu mengetik prefix terus-menerus.
+  - Perintah kontrol sesi: `.agy --stop` untuk mengakhiri sesi interaktif, dan `.agy --reset` untuk memulai obrolan baru dari awal.
+- **Keamanan Berlapis dengan PreToolUse Gatekeeper Hook:**
+  - Menolak bypass liar: Setiap pemanggilan aksi kritis/terminal (`run_command`, `write_to_file`, `replace_file_content`, dsb.) otomatis dijeda (*pause*) oleh Lifecycle Hook `.agents/hooks.json`.
+  - Bot mengirimkan pesan konfirmasi persetujuan ke WhatsApp Owner: balas `Y` untuk mengizinkan atau `N` untuk menolak aksi tersebut.
+  - Aksi aman/read-only (`view_file`, `list_dir`, `grep_search`, `search_web`, dsb.) berjalan otomatis tanpa membebani interaksi chat.
+- **Live Logs Streaming dengan WhatsApp Message Edit:**
+  - Menampilkan langkah realtime yang sedang diproses agen (narasi pemikiran + status pemanggilan tool: `● Read(...)`, `✔ Read(...)`, `● Bash(...)`, `● ManageTask(...)`).
+  - Menggunakan sistem edit pesan WhatsApp in-place dengan debounce cerdas sehingga tidak membanjiri ruang chat.
+  - Alur persetujuan terpisah rapi: pesan log difinalisasi $\rightarrow$ kirim pesan konfirmasi baru $\rightarrow$ kirim pesan baru untuk melanjutkan live log.
+- **Fitur `/btw` (By The Way / Progress Check):**
+  - Cek status langkah task yang sedang berjalan secara realtime kapan saja dengan mengetik `/btw` atau `.btw`.
+  - Tanyakan progres atau arahan tambahan di tengah berjalannya proses dengan `/btw <pertanyaan>`.
+- **Hasil Akhir Respon Utuh Teks (Bebas Dokumen .txt):**
+  - Respon hasil akhir agen dikirimkan langsung sebagai teks chat WhatsApp biasa (bukan sebagai lampiran file `.txt`), dengan auto-chunking jika melebihi batas karakter pesan WhatsApp.
+- **100% Portabel & Auto Self-Setup:**
+  - Otomatis mengonfigurasi direktori `.agents/` dan hook saat bot pertama kali dijalankan di VPS baru mana pun.
+  - Otomatis mendeteksi jika Antigravity CLI belum terinstall di VPS dan memberikan instruksi instalasi lengkap.
+
+---
+
+## Fitur Unggulan Versi Sebelumnya (v1.4.0)
 
 ### 1. 📱 GSMArena & Smartphone Specifications Engine (`.spec` / `.gsmarena` / `.hp`)
 - **Bypass Proteksi Cloudflare Turnstile:** Mendukung integrasi Cookie (`sLoginCookie` / `cf_clearance`) dan custom User-Agent agar tetap dapat mengakses GSMArena dari IP server.
@@ -74,6 +101,9 @@ Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk p
 
 | Perintah | Deskripsi |
 | --- | --- |
+| `.agy <instruksi>` | Menjalankan instruksi AI Developer Google Antigravity CLI dengan sistem approval (Khusus Owner) |
+| `.agy --sesi` | Mengaktifkan sesi obrolan interaktif langsung tanpa prefix |
+| `/btw` atau `.btw` | Memeriksa live status & riwayat task Antigravity yang sedang berjalan, atau tanya progres |
 | `.spec <nama hp>` | Pencarian spesifikasi HP & GSMArena interaktif dengan foto & estimasi harga |
 | `.lyrics <judul lagu>` | Pencarian lirik lagu lokal dan internasional lengkap |
 | `.jadwalbola [tim/nomor]` | Jadwal sepak bola terkini, skor, & susunan pemain Starting XI interaktif |

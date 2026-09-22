@@ -5,15 +5,16 @@ const fs = require('fs');
 const os = require('os');
 
 /**
- * Antigravity CLI Controller & Session Manager
+ * Antigravity CLI Controller & Session Manager (Clean Text / Zero-Emoji Edition)
  * Full features:
  * 1. Multi-turn session per chat (Owner only)
  * 2. PreToolUse approval gatekeeper (tanpa --dangerously-skip-permissions liar)
- * 3. Minimalist live logs via WhatsApp message edit (sesuai tampilan TUI agy)
+ * 3. Minimalist live logs via WhatsApp message edit (sesuai TUI agy, clean text)
  * 4. Approval request: pesan lama difinalisasi, kirim pesan konfirmasi baru, lalu pesan log baru
  * 5. Jawaban akhir dikirim utuh sebagai gelembung teks chat biasa (BUKAN file dokumen)
  * 6. /btw slash command support during ongoing tasks
  * 7. 100% Auto-detect & auto-setup di VPS / perangkat baru mana pun
+ * 8. Tampilan bebas emoji untuk pengalaman teks bersih dan profesional
  */
 
 const DEFAULT_BRIDGE_PORT = 39281;
@@ -228,7 +229,7 @@ function startBridgeServer() {
 
     bridgeServer.listen(DEFAULT_BRIDGE_PORT, '127.0.0.1', () => {
         activeBridgePort = bridgeServer.address().port;
-        bridgeServer.unref(); // Jangan tahan event loop
+        bridgeServer.unref();
         const portFilePath = path.join(process.cwd(), '.agents', '.bridge_port');
         try {
             fs.writeFileSync(portFilePath, activeBridgePort.toString(), 'utf8');
@@ -236,7 +237,6 @@ function startBridgeServer() {
     });
 }
 
-// Inisialisasi bridge pada startup plugin
 startBridgeServer();
 
 /**
@@ -298,14 +298,14 @@ function formatToolDetailForApproval(toolName, params) {
     params = params || {};
     switch (toolName) {
         case 'run_command':
-            return `• *Aksi:* Menjalankan Perintah Terminal (Bash)\n• *Command:* \`\`\`${params.CommandLine || '-'}\`\`\``;
+            return `*Aksi:* Menjalankan Perintah Terminal (Bash)\n*Command:* \`\`\`${params.CommandLine || '-'}\`\`\``;
         case 'write_to_file':
-            return `• *Aksi:* Menulis / Membuat File\n• *Target:* \`${params.TargetFile || '-'}\`\n• *Keterangan:* ${params.Description || '-'}`;
+            return `*Aksi:* Menulis / Membuat File\n*Target:* \`${params.TargetFile || '-'}\`\n*Keterangan:* ${params.Description || '-'}`;
         case 'replace_file_content':
         case 'multi_replace_file_content':
-            return `• *Aksi:* Mengedit File\n• *Target:* \`${params.TargetFile || '-'}\`\n• *Instruksi:* ${params.Instruction || '-'}`;
+            return `*Aksi:* Mengedit File\n*Target:* \`${params.TargetFile || '-'}\`\n*Instruksi:* ${params.Instruction || '-'}`;
         default:
-            return `• *Tool:* \`${toolName}\`\n• *Parameter:* \`\`\`${JSON.stringify(params, null, 2)}\`\`\``;
+            return `*Tool:* \`${toolName}\`\n*Parameter:* \`\`\`${JSON.stringify(params, null, 2)}\`\`\``;
     }
 }
 
@@ -330,26 +330,26 @@ async function handleIncomingPermissionRequest(data, res) {
 
     // 1. Finalisasi pesan log yang sedang diedit sebelumnya
     if (targetTask.lastLogMsgKey) {
-        const finalizedLog = (targetTask.renderedLogText || '').trim() + '\n\n⏸️ _[Menunggu konfirmasi persetujuan...]_';
+        const finalizedLog = (targetTask.renderedLogText || '').trim() + '\n\n[Menunggu konfirmasi persetujuan...]';
         try {
             await bob.sendMessage(chatId, {
                 text: finalizedLog,
                 edit: targetTask.lastLogMsgKey
             });
         } catch (e) {}
-        targetTask.lastLogMsgKey = null; // Kanvas sebelumnya ditutup
+        targetTask.lastLogMsgKey = null;
     }
 
-    // 2. Kirim PESAN BARU untuk konfirmasi persetujuan
+    // 2. Kirim PESAN BARU untuk konfirmasi persetujuan (Clear / Bebas Emoji)
     const toolDetails = formatToolDetailForApproval(data.toolName, data.toolArgs);
     const approvalPrompt = 
-        `⚠️ *Konfirmasi Persetujuan Diperlukan*\n` +
-        `─────────────────────────────\n` +
+        `[KONFIRMASI PERSETUJUAN]\n` +
+        `----------------------------------------\n` +
         `${toolDetails}\n\n` +
-        `👉 *Ketik:* \n` +
-        `• *Y* (Setuju) untuk mengizinkan\n` +
-        `• *N* (Tolak) untuk membatalkan\n\n` +
-        `⏱️ _Batas waktu: 2 menit_`;
+        `Ketik:\n` +
+        `*Y* (Setuju) untuk mengizinkan\n` +
+        `*N* (Tolak) untuk membatalkan\n\n` +
+        `_Batas waktu konfirmasi: 2 menit_`;
 
     let sentApprovalMsg = null;
     try {
@@ -374,7 +374,7 @@ async function handleIncomingPermissionRequest(data, res) {
                 if (sentApprovalMsg) {
                     try {
                         await bob.sendMessage(chatId, {
-                            text: `⏱️ *Waktu Persetujuan Habis.* Aksi otomatis dibatalkan oleh sistem.`,
+                            text: `[Waktu Konfirmasi Habis] Aksi otomatis dibatalkan oleh sistem.`,
                             edit: sentApprovalMsg.key
                         });
                     } catch (e) {}
@@ -392,12 +392,10 @@ async function handleIncomingPermissionRequest(data, res) {
 function renderLiveLogText(task) {
     let result = '';
 
-    // Tampilkan narasi pemikiran agen terkini jika ada
     if (task.latestThought) {
         result += `${task.latestThought.trim()}\n\n`;
     }
 
-    // Tampilkan aksi tool terakhir
     const maxActions = 6;
     const recent = task.actions.slice(-maxActions);
     if (recent.length > 0) {
@@ -450,7 +448,6 @@ async function sendFullTextResponse(bob, chatId, fullText, quotedMsg) {
         return;
     }
 
-    // Pecah berdasarkan paragraf (\n\n) agar struktur rapi
     const paragraphs = textToSend.split('\n\n');
     let currentChunk = '';
 
@@ -461,7 +458,6 @@ async function sendFullTextResponse(bob, chatId, fullText, quotedMsg) {
                 currentChunk = '';
             }
             if (para.length > MAX_CHUNK) {
-                // Paragraf tunggal lebih panjang dari batas, pecah berdasarkan baris
                 const lines = para.split('\n');
                 for (const line of lines) {
                     if ((currentChunk + '\n' + line).length > MAX_CHUNK) {
@@ -521,7 +517,7 @@ module.exports = {
                     if (approvalMsgKey) {
                         try {
                             await bob.sendMessage(m.chat, {
-                                text: `✅ *Aksi Diizinkan.* Melanjutkan eksekusi...`,
+                                text: `[Persetujuan Diberikan] Melanjutkan eksekusi...`,
                                 edit: approvalMsgKey
                             });
                         } catch (e) {}
@@ -535,14 +531,14 @@ module.exports = {
                     if (approvalMsgKey) {
                         try {
                             await bob.sendMessage(m.chat, {
-                                text: `🚫 *Aksi Ditolak.* Antigravity akan melanjutkan tanpa aksi ini.`,
+                                text: `[Persetujuan Ditolak] Antigravity akan melanjutkan tanpa aksi ini.`,
                                 edit: approvalMsgKey
                             });
                         } catch (e) {}
                     }
                 }
 
-                // Kirim PESAN BARU untuk kanvas log lanjutan!
+                // Kirim PESAN BARU untuk kanvas log lanjutan
                 try {
                     const newLogMsg = await bob.sendMessage(m.chat, {
                         text: `● Melanjutkan eksekusi...`
@@ -564,12 +560,12 @@ module.exports = {
             if (!activeTask) {
                 const sess = sessions.get(m.chat);
                 return m.reply(
-                    `ℹ️ *Tidak Ada Task Antigravity yang Sedang Berjalan*\n\n` +
-                    `• *Sesi Percakapan:* ${sess?.conversationId ? `Aktif (\`${sess.conversationId.slice(0, 8)}...\`)` : 'Belum aktif'}\n` +
-                    `• *Mode Interaktif:* ${sess?.isInteractive ? '✅ Aktif' : '❌ Nonaktif'}\n\n` +
+                    `*Tidak Ada Task Antigravity yang Sedang Berjalan*\n\n` +
+                    `*ID Percakapan:* ${sess?.conversationId ? `\`${sess.conversationId}\`` : 'Belum aktif'}\n` +
+                    `*Mode Interaktif:* ${sess?.isInteractive ? 'Aktif' : 'Nonaktif'}\n\n` +
                     `Untuk memulai tugas:\n` +
-                    `👉 *${prefix}agy <instruksi Anda>*\n` +
-                    `👉 *${prefix}agy --sesi* (untuk mode chat interaktif tanpa prefix)`
+                    `*${prefix}agy <instruksi Anda>*\n` +
+                    `*${prefix}agy --sesi* (untuk mode chat interaktif tanpa prefix)`
                 );
             }
 
@@ -580,26 +576,26 @@ module.exports = {
 
             if (query) {
                 let btwResponse =
-                    `🔍 *Jawaban /btw:*\n` +
-                    `• *Pertanyaan:* "${query}"\n` +
-                    `• *Tugas Berjalan:* ${activeTask.prompt}\n` +
-                    `• *Durasi:* ${elapsedSec} detik (${totalActions} langkah)\n` +
-                    `• *Langkah Saat Ini:* ${currentStatusDesc}\n`;
+                    `*Jawaban /btw:*\n` +
+                    `*Pertanyaan:* "${query}"\n` +
+                    `*Tugas Berjalan:* ${activeTask.prompt}\n` +
+                    `*Durasi:* ${elapsedSec} detik (${totalActions} langkah)\n` +
+                    `*Langkah Saat Ini:* ${currentStatusDesc}\n`;
 
                 if (activeTask.pendingApproval) {
-                    btwResponse += `\n⚠️ *Catatan:* Saat ini task sedang dijeda menunggu persetujuan Anda (Ketik Y/N).`;
+                    btwResponse += `\n*Catatan:* Saat ini task sedang dijeda menunggu persetujuan Anda (Ketik Y/N).`;
                 }
 
                 return m.reply(btwResponse);
             } else {
                 let overview =
-                    `🔍 *Status Task Antigravity (/btw)*\n` +
-                    `─────────────────────────────\n` +
-                    `• *Instruksi:* ${activeTask.prompt}\n` +
-                    `• *Durasi Berjalan:* ${elapsedSec} detik\n` +
-                    `• *Langkah Saat Ini:* ${currentStatusDesc}\n` +
-                    `• *Total Aksi:* ${totalActions} langkah\n` +
-                    `• *Status:* ${activeTask.pendingApproval ? '⏸️ Menunggu Persetujuan Anda (Ketik Y/N)' : '⚡ Sedang Berjalan'}\n\n` +
+                    `*Status Task Antigravity (/btw)*\n` +
+                    `----------------------------------------\n` +
+                    `*Instruksi:* ${activeTask.prompt}\n` +
+                    `*Durasi:* ${elapsedSec} detik\n` +
+                    `*Langkah Terkini:* ${currentStatusDesc}\n` +
+                    `*Total Aksi:* ${totalActions} langkah\n` +
+                    `*Status:* ${activeTask.pendingApproval ? 'Menunggu Persetujuan Anda (Ketik Y/N)' : 'Sedang Berjalan'}\n\n` +
                     `_Langkah Terakhir:_\n` +
                     (activeTask.actions.slice(-4).map(a => `${a.statusSymbol} ${a.display}`).join('\n') || '_(Belum ada tool)_');
 
@@ -623,7 +619,7 @@ module.exports = {
     exec: async (m, { bob, args, text, prefix, command, isCreator, isOwner }) => {
         const ownerAuth = isCreator || isOwner;
         if (!ownerAuth) {
-            return m.reply('❌ Perintah ini terhubung langsung ke Antigravity CLI dan hanya dapat digunakan oleh Owner.');
+            return m.reply('[Akses Ditolak] Perintah ini terhubung langsung ke Antigravity CLI dan hanya dapat digunakan oleh Owner.');
         }
 
         if (command === 'btw') {
@@ -636,25 +632,25 @@ module.exports = {
         if (!cleanText) {
             const sess = sessions.get(m.chat);
             return m.reply(
-                `🤖 *Antigravity CLI Controller*\n` +
-                `─────────────────────────────\n` +
+                `*Antigravity CLI Controller*\n` +
+                `----------------------------------------\n` +
                 `*Perintah:*\n` +
-                `• *${prefix + command} <instruksi>*\n` +
-                `  _Contoh: ${prefix + command} periksa kode dan jalankan test_\n\n` +
+                `*${prefix + command} <instruksi>*\n` +
+                `_Contoh: ${prefix + command} periksa kode dan jalankan test_\n\n` +
                 `*Sesi Chat:*\n` +
-                `• *${prefix + command} --sesi*\n` +
-                `  _Masuk mode chat interaktif (bisa chat langsung tanpa prefix)._\n\n` +
-                `• *${prefix + command} --stop*\n` +
-                `  _Keluar dari mode sesi chat interaktif._\n\n` +
-                `• *${prefix + command} --reset*\n` +
-                `  _Reset riwayat percakapan (mulai obrolan baru)._\n\n` +
+                `*${prefix + command} --sesi*\n` +
+                `_Masuk mode chat interaktif (bisa chat langsung tanpa prefix)._\n\n` +
+                `*${prefix + command} --stop*\n` +
+                `_Keluar dari mode sesi chat interaktif._\n\n` +
+                `*${prefix + command} --reset*\n` +
+                `_Reset riwayat percakapan (mulai obrolan baru)._\n\n` +
                 `*Monitoring Progres:*\n` +
-                `• */btw* atau *${prefix}btw*\n` +
-                `  _Cek status live progress task yang sedang berjalan._\n\n` +
-                `• */btw <pertanyaan>*\n` +
-                `  _Tanya perkembangan tugas di tengah proses._\n\n` +
-                `🔒 *Keamanan:* Aksi kritis memerlukan persetujuan WhatsApp (Y/N).\n` +
-                `📊 *Status Sesi:* ${sess?.conversationId ? `Aktif (\`${sess.conversationId.slice(0, 8)}...\`)` : 'Belum aktif'}`
+                `*/btw* atau *${prefix}btw*\n` +
+                `_Cek status live progress task yang sedang berjalan._\n\n` +
+                `*/btw <pertanyaan>*\n` +
+                `_Tanya perkembangan tugas di tengah proses._\n\n` +
+                `*Keamanan:* Aksi kritis memerlukan persetujuan WhatsApp (Y/N).\n` +
+                `*Status Sesi:* ${sess?.conversationId ? `Aktif (\`${sess.conversationId.slice(0, 8)}...\`)` : 'Belum aktif'}`
             );
         }
 
@@ -662,12 +658,12 @@ module.exports = {
         if (cleanText === '--stop') {
             const sess = sessions.get(m.chat);
             if (sess) sess.isInteractive = false;
-            return m.reply('🛑 *Sesi Interaktif Dinonaktifkan.*\nGunakan prefix seperti biasa untuk menjalankan perintah.');
+            return m.reply('*Sesi Interaktif Dinonaktifkan.*\nGunakan prefix seperti biasa untuk menjalankan perintah.');
         }
 
         if (cleanText === '--reset') {
             sessions.delete(m.chat);
-            return m.reply('🔄 *Konteks Percakapan Direset.*\nPercakapan berikutnya akan dimulai sebagai sesi baru.');
+            return m.reply('*Konteks Percakapan Direset.*\nPercakapan berikutnya akan dimulai sebagai sesi baru.');
         }
 
         if (cleanText.startsWith('--sesi')) {
@@ -681,15 +677,15 @@ module.exports = {
 
             const initialPrompt = cleanText.replace('--sesi', '').trim();
             if (initialPrompt) {
-                await m.reply('🤖 *Sesi Interaktif Aktif!*\n_Memproses instruksi Anda..._');
+                await m.reply('*Sesi Interaktif Aktif*\n_Memproses instruksi Anda..._');
                 return module.exports.executeTask(bob, m, initialPrompt, { isCreator: true, prefix });
             } else {
                 return m.reply(
-                    `🤖 *Sesi Interaktif Antigravity Dimulai!*\n\n` +
-                    `• Anda dapat langsung mengirim instruksi coding *(tanpa prefix)*.\n` +
-                    `• Gunakan */btw* kapan saja untuk memeriksa progres.\n` +
-                    `• Ketik *${prefix + command} --stop* untuk keluar dari sesi.\n` +
-                    `• Ketik *${prefix + command} --reset* untuk mereset riwayat sesi.`
+                    `*Sesi Interaktif Antigravity Dimulai*\n\n` +
+                    `Anda dapat langsung mengirim instruksi coding *(tanpa prefix)*.\n` +
+                    `Gunakan */btw* kapan saja untuk memeriksa progres.\n` +
+                    `Ketik *${prefix + command} --stop* untuk keluar dari sesi.\n` +
+                    `Ketik *${prefix + command} --reset* untuk mereset riwayat sesi.`
                 );
             }
         }
@@ -706,9 +702,9 @@ module.exports = {
         const agyPath = findAgyBinary();
         if (!agyPath) {
             return m.reply(
-                `❌ *Antigravity CLI Belum Terinstall / Ditemukan!*\n\n` +
+                `[ERROR] Antigravity CLI Belum Terinstall / Ditemukan!\n\n` +
                 `Perangkat atau VPS ini belum memiliki binary Antigravity CLI (\`agy\`).\n\n` +
-                `📌 *Langkah Instalasi di VPS:*\n` +
+                `*Langkah Instalasi di VPS:*\n` +
                 `1. Pastikan Antigravity CLI terpasang di sistem VPS Anda:\n` +
                 `   Dokumentasi: https://antigravity.google/docs/cli/reference\n` +
                 `2. Pastikan binary \`agy\` dapat diakses via PATH (\`~/.local/bin/agy\` atau \`/usr/local/bin/agy\`).\n` +
@@ -718,7 +714,7 @@ module.exports = {
         }
 
         if (activeTasks.has(m.chat)) {
-            return m.reply('⏳ Masih ada tugas Antigravity yang sedang diproses di chat ini. Gunakan */btw* untuk melihat progresnya.');
+            return m.reply('Masih ada tugas Antigravity yang sedang diproses di chat ini. Gunakan */btw* untuk melihat progresnya.');
         }
 
         // Pastikan folder hooks dan bridge server siap
@@ -777,7 +773,7 @@ module.exports = {
             taskState.childProcess = child;
         } catch (err) {
             activeTasks.delete(m.chat);
-            return m.reply(`❌ Gagal memulai proses Antigravity: ${err.message}`);
+            return m.reply(`[ERROR] Gagal memulai proses Antigravity: ${err.message}`);
         }
 
         let lineBuffer = '';
@@ -813,7 +809,6 @@ module.exports = {
                     // Tangkap narasi berpikir / thought dari agen
                     if (su.step_type === 'agent_response' && su.text_delta) {
                         const delta = su.text_delta;
-                        // Simpan narasi terkini (ambil 1-2 kalimat teranyar)
                         taskState.latestThought = (taskState.latestThought + delta).trim();
                         if (taskState.latestThought.length > 250) {
                             taskState.latestThought = taskState.latestThought.slice(-250);
@@ -896,16 +891,16 @@ module.exports = {
                 await sendFullTextResponse(bob, m.chat, outputToSend, m);
             } else {
                 if (code === 0) {
-                    await m.reply('🤖 *Antigravity:* Tugas telah selesai.');
+                    await m.reply('Tugas telah selesai dilaksanakan.');
                 } else {
-                    await m.reply(`⚠️ Antigravity CLI keluar dengan kode status: ${code}.`);
+                    await m.reply(`[Antigravity CLI keluar dengan kode status: ${code}]`);
                 }
             }
         });
 
         child.on('error', (err) => {
             activeTasks.delete(m.chat);
-            m.reply(`❌ Gagal menjalankan Antigravity CLI: ${err.message}`);
+            m.reply(`[ERROR] Gagal menjalankan Antigravity CLI: ${err.message}`);
         });
     }
 };
