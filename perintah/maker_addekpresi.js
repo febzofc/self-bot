@@ -118,12 +118,17 @@ module.exports = {
                     sender: m.sender
                 });
 
+                const totalMsg = saved.totalInGroup > 1
+                    ? `🎲 *Kategori "${saved.name}" kini memiliki ${saved.totalInGroup} stiker!*\nBot akan merandom (memilih acak) salah satu stiker ini ketika konteks "${saved.name}" muncul.`
+                    : `🎲 Saat konteks obrolan sesuai, bot akan memiliki peluang 35% mengirimkan stiker ini.`;
+
                 return m.reply(
                     `✅ *Stiker Ekspresi Berhasil Disimpan!*\n\n` +
                     `🏷️ *Kategori Ekspresi:* ${saved.name}\n` +
+                    `📦 *Total Stiker di Kategori:* ${saved.totalInGroup} stiker\n` +
                     `📝 *Deskripsi Penggunaan:* ${saved.description}\n` +
                     `🆔 *ID Stiker:* \`${saved.id}\`\n\n` +
-                    `🤖 *Mekanisme Kerja:* Saat kamu atau lawan bicara mengobrol biasa dengan bot, bot akan memiliki peluang *35%* mengekspresikan diri dengan stiker ini jika suasananya pas!\n\n` +
+                    `${totalMsg}\n\n` +
                     `_Ketik *${prefix}listekpresi* untuk melihat semua daftar ekspresi._`
                 );
             } catch (errSave) {
@@ -161,6 +166,9 @@ module.exports = {
 
                 listText += `\n${index++}. *${item.name.toUpperCase()}* (${item.count} stiker)\n`;
                 listText += `   📝 _Deskripsi: ${descStr}_\n`;
+                if (item.count > 1) {
+                    listText += `   🎲 _Random: Bot mengacak 1 dari ${item.count} stiker saat emosi muncul_\n`;
+                }
             }
 
             listText += `\n📊 *Statistik:* ${totalStickers} stiker terdaftar di ${keys.length} ekspresi emosi.`;
