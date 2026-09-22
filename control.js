@@ -487,13 +487,8 @@ module.exports = async (bob, m, chatUpdate, store) => {
                 console.log(runtime())
                 break
 
-            case 'delete': case 'del': {
-                if (!m.quoted) throw false
-                let { chat, fromMe, id, isBaileys } = m.quoted
-                if (!isBaileys) throw 'Pesan tersebut bukan dikirim oleh bot!'
-                bob.sendMessage(m.chat, { delete: { remoteJid: m.chat, fromMe: true, id: m.quoted.id, participant: m.quoted.sender } })
-            }
-                break
+
+
 
 
             case 'send': {
