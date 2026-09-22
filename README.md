@@ -1,10 +1,32 @@
-# Cimo Self-Bot (v2.0.0)
+# Cimo Self-Bot (v2.1.0)
 
 Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk penggunaan pribadi (self-bot) dan grup chat. Bot ini menggunakan arsitektur modular berbasis plugin yang mempermudah penambahan fitur baru, serta dilengkapi dengan integrasi AI Developer Google Antigravity CLI (AGY), dashboard web monitoring, Web Player Streaming Anime, Web TV, Integrasi Server Minecraft ServerTap.io, Social Media Stalkers (Instagram & TikTok), dan Smartphone Specification Engine.
 
 ---
 
-## Fitur Unggulan Versi Terbaru (v2.0.0 - Antigravity Integration)
+## Fitur Unggulan Versi Terbaru (v2.1.0)
+
+### 1. Pinterest Search Engine (`.pinterest` / `.pin`)
+- **Pencarian Gambar Pinterest Realtime:** Menggunakan API siputzx untuk mengambil gambar resolusi tinggi dari Pinterest.
+- **Dukungan Multi-Gambar:** Mendukung pengiriman 1 hingga 5 gambar sekaligus (contoh: `.pin anime aesthetic 3` atau `--count=3`).
+- **Pengacakan Variatif & Anti-Repetitif:** Hasil pencarian diacak (Fisher-Yates shuffle) agar setiap pencarian menghasilkan gambar yang selalu bervariasi.
+- **Download Buffer & URL Fallback:** Gambar diunduh sebagai buffer terlebih dahulu untuk keandalan Baileys, dengan fallback otomatis ke direct URL jika diperlukan.
+
+### 2. SSYouTube Downloader MP3 (128kbps) & MP4 All Resolusi (`.ssyt` / `.ssmp3` / `.ssmp4`)
+- Scraper kustom untuk mengunduh video dan audio YouTube melalui penyedia ssyoutube.com.mx.
+- Pemilihan otomatis kualitas audio MP3 128kbps dan video MP4 kualitas terbaik.
+
+### 3. Jarak Antar Kota & Kalkulator Rute (`.jarak` / `.jarakkota` / `.distance`)
+- Menghitung jarak rute jalan darat antar dua kota secara akurat dalam kilometer (KM).
+- Estimasi waktu tempuh mobil dan sepeda motor beserta koordinat geografis.
+
+### 4. Optimalisasi Kebijakan Restart PM2 & AI Router
+- Proteksi restart PM2 otomatis: penambahan/pengeditan plugin di `./perintah/` menggunakan hot-reload tanpa restart proses bot.
+- Penyempurnaan filter routing AI dan penanganan interupsi `/btw` saat task Antigravity berjalan.
+
+---
+
+## Fitur Unggulan Versi v2.0.0 (Antigravity Integration)
 
 ### 1. Google Antigravity (AGY) CLI Full Integration & Controller (`.agy` / `.antigravity` / `.btw`)
 - **Jembatan WhatsApp ke AI Developer Agent Antigravity:** Menghubungkan bot WhatsApp langsung ke runtime Antigravity CLI di VPS untuk mengeksekusi instruksi coding, inspeksi file, debugging, testing, pembuatan dokumen, dan manajemen task.

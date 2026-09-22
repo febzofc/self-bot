@@ -14,7 +14,7 @@
 
 2. **Approval, Autonomy & Code Choice Policy**:
    - **Auto-Allowed Non-Fatal Operations**:
-     - Terminal commands that are non-destructive (e.g. `curl`, `wget`, `cat`, `ls`, `grep`, `node`, `npm test`, `git status/diff/add/commit`, `pm2 restart self-bot`) are executed automatically without user approval.
+     - Terminal commands that are non-destructive (e.g. `curl`, `wget`, `cat`, `ls`, `grep`, `node`, `npm test`, `git status/diff/add/commit`) are executed automatically without user approval.
      - Plugin creation and editing inside `./perintah/` (and routine helper files) are auto-allowed.
    - **Fatal / Critical Operations (Manual Approval Required)**:
      - System/repository destructive actions (`rm -rf`, `rmdir`, `git reset --hard`, deleting WhatsApp `session/`, reboot/shutdown, chmod root) will trigger a risk warning and require Owner approval (`Y` / `N`).
@@ -23,7 +23,19 @@
      - When multiple implementation options, architectural trade-offs, or code recommendations exist ("rekomendasi kode / pilihan kode"), present clear and concise choices directly in the chat so the user can decide.
    - DO NOT call GUI modal `ask_question` because the agent runs headlessly via WhatsApp; present options directly in the conversation text.
 
-3. **Standard Plugin Structure**:
+3. **PM2 Restart & Code Execution Policy**:
+   - **No PM2 Restart for Plugin/Command Changes**:
+     - The `./perintah/` directory is automatically watched and hot-reloaded in memory by `lib/pluginManager.js` (`fs.watch`).
+     - If ONLY adding, creating, or editing plugins/commands in `./perintah/`, **DO NOT restart PM2** (`pm2 restart self-bot`). It is completely unnecessary and causes disconnection.
+   - **Finish All Code Writing Before Any Restart**:
+     - Never execute `pm2 restart` in the middle of code writing or right after writing a single file.
+     - When making major changes (such as creating new modules in `lib/`, adding scrapers in `lib/scrapers/`, or core bot adjustments):
+       1. Finish writing ALL files completely first (all helpers, scrapers, modules, and commands).
+       2. Validate the syntax and test thoroughly (e.g. `node -c <file>`).
+       3. Confirm that all writing tasks are completed.
+       4. Only then, perform `pm2 restart self-bot` if a process restart is truly necessary for those major changes.
+
+4. **Standard Plugin Structure**:
    Every plugin file in `./perintah/` must follow this structure:
    ```javascript
    module.exports = {
@@ -36,7 +48,7 @@
    };
    ```
 
-4. **Group Features Rules**:
+5. **Group Features Rules**:
    - Verify group status: `if (!m.isGroup) return m.reply('Perintah ini hanya dapat digunakan di dalam grup!');`
    - Retrieve group metadata and admin list:
      ```javascript
@@ -60,6 +72,6 @@
      - `bob.groupSettingUpdate(m.chat, 'not_announcement')` (unmute group)
      - `bob.groupUpdateSubject(m.chat, newName)` (rename group)
 
-5. **Style Guidelines**:
+6. **Style Guidelines**:
    - Clean, professional text output (no emoji spam).
    - Responses should be concise, helpful, and in Indonesian.

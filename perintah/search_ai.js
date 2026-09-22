@@ -75,6 +75,19 @@ module.exports = {
         const text = (budy || body || '').trim();
         if (!text) return false;
 
+        // Abaikan perintah /btw atau .btw agar tidak diproses oleh AI biasa
+        if (/^(\/|\.)?btw(\s|$)/i.test(text)) return false;
+
+        // Abaikan respon konfirmasi Y/N jika sedang ada persetujuan aktif di Antigravity
+        if (/^(y|ya|yes|izinkan|setuju|ok|n|no|tidak|tolak|batal)$/i.test(text)) {
+            try {
+                const agyPlugin = require('./owner_antigravity.js');
+                if (agyPlugin && typeof agyPlugin.hasPendingApproval === 'function' && agyPlugin.hasPendingApproval(m.chat)) {
+                    return false;
+                }
+            } catch (e) {}
+        }
+
         const sessionId = m.isGroup ? `${m.chat}_${m.sender}` : m.chat;
         const session = aiSessions.get(sessionId) || aiSessions.get(m.chat);
         if (!session || !session.isInteractive) return false;

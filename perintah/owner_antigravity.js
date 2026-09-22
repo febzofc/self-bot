@@ -316,17 +316,24 @@ process.stdin.on('end', () => {
     };
     const hooksJsonStr = JSON.stringify(hooksConfig, null, 2);
 
-    const targetHooksPaths = [
-        path.join(agentsDir, 'hooks.json'),
+    // Tulis hooks.json HANYA ke direktori workspace .agents/
+    const workspaceHooksPath = path.join(agentsDir, 'hooks.json');
+    try {
+        const dir = path.dirname(workspaceHooksPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(workspaceHooksPath, hooksJsonStr, 'utf8');
+    } catch (e) {}
+
+    // Bersihkan duplikat hooks.json di level global agar Antigravity tidak mengeksekusi gatekeeper berkali-kali (double konfirmasi)
+    const duplicateGlobalHooks = [
         path.join(homedir, '.gemini', 'config', 'hooks.json'),
         path.join(homedir, '.gemini', 'antigravity-cli', 'hooks.json')
     ];
-
-    for (const hp of targetHooksPaths) {
+    for (const dp of duplicateGlobalHooks) {
         try {
-            const dir = path.dirname(hp);
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(hp, hooksJsonStr, 'utf8');
+            if (fs.existsSync(dp)) {
+                fs.unlinkSync(dp);
+            }
         } catch (e) {}
     }
 }
@@ -485,7 +492,23 @@ async function handleIncomingPermissionRequest(data, res) {
 
     const { bob, chatId } = targetTask;
 
-    // 1. Perbarui pesan live logs utama agar menampilkan status aksi fatal apa yang sedang menunggu persetujuan
+    // 1. Cek apakah sudah ada persetujuan yang sedang pending untuk aksi yang sama (Deduplikasi Hook)
+    if (targetTask.pendingApproval) {
+        const isSameTool = targetTask.pendingApproval.toolName === data.toolName;
+        const isSameArgs = JSON.stringify(targetTask.pendingApproval.toolArgs || {}) === JSON.stringify(data.toolArgs || {});
+
+        if (isSameTool && isSameArgs) {
+            // Jangan kirim pesan konfirmasi ganda ke WhatsApp! Cukup tambahkan res ke antrean respon
+            if (!targetTask.pendingApproval.responses) {
+                targetTask.pendingApproval.responses = [targetTask.pendingApproval.res].filter(Boolean);
+            }
+            targetTask.pendingApproval.responses.push(res);
+            console.log(`[Bridge] Permintaan izin duplikat untuk tool '${data.toolName}' digabungkan ke konfirmasi yang sedang aktif.`);
+            return;
+        }
+    }
+
+    // 2. Perbarui pesan live logs utama agar menampilkan status aksi fatal apa yang sedang menunggu persetujuan
     targetTask.pendingApprovalReason = data.fatalReason || 'Aksi berisiko tinggi / fatal';
     targetTask.pendingApprovalTool = data.toolName;
     targetTask.pendingApprovalArgs = data.toolArgs;
@@ -503,7 +526,7 @@ async function handleIncomingPermissionRequest(data, res) {
         } catch (e) {}
     }
 
-    // 2. Kirim PESAN BARU untuk konfirmasi persetujuan dengan MEMBALAS (reply/quote) pesan live log utama
+    // 3. Kirim PESAN BARU untuk konfirmasi persetujuan dengan MEMBALAS (reply/quote) pesan live log utama
     const toolDetails = formatToolDetailForApproval(data.toolName, data.toolArgs, data.fatalReason);
     const approvalPrompt = 
         `[KONFIRMASI AKSI KRITIS / FATAL]\n` +
@@ -526,18 +549,22 @@ async function handleIncomingPermissionRequest(data, res) {
         }
     }
 
-    // 3. Simpan state pending approval
+    // 4. Simpan state pending approval dengan list responses untuk multi-res resolution
     targetTask.pendingApproval = {
         toolName: data.toolName,
         toolArgs: data.toolArgs,
         res,
+        responses: [res],
         approvalMsgKey: sentApprovalMsg ? sentApprovalMsg.key : null,
         timer: setTimeout(async () => {
             if (targetTask && targetTask.pendingApproval) {
-                try {
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ decision: 'deny', reason: 'Waktu konfirmasi WhatsApp habis (timeout 2 menit)' }));
-                } catch (e) {}
+                const pendingResList = targetTask.pendingApproval.responses || [targetTask.pendingApproval.res].filter(Boolean);
+                for (const r of pendingResList) {
+                    try {
+                        r.writeHead(200, { 'Content-Type': 'application/json' });
+                        r.end(JSON.stringify({ decision: 'deny', reason: 'Waktu konfirmasi WhatsApp habis (timeout 2 menit)' }));
+                    } catch (e) {}
+                }
 
                 if (sentApprovalMsg) {
                     try {
@@ -689,40 +716,30 @@ module.exports = {
 
             if (isYes || isNo) {
                 clearTimeout(activeTask.pendingApproval.timer);
-                const { res, approvalMsgKey } = activeTask.pendingApproval;
+                const { responses, res, approvalMsgKey } = activeTask.pendingApproval;
+                const pendingResList = responses || (res ? [res] : []);
                 activeTask.pendingApproval = null;
                 activeTask.pendingApprovalReason = null;
                 activeTask.pendingApprovalTool = null;
                 activeTask.pendingApprovalArgs = null;
 
-                if (isYes) {
-                    try {
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ decision: 'allow' }));
-                    } catch (e) {}
+                const decision = isYes ? 'allow' : 'deny';
+                const reason = isYes ? undefined : 'Ditolak oleh Owner melalui WhatsApp';
 
-                    if (approvalMsgKey) {
-                        try {
-                            await bob.sendMessage(m.chat, {
-                                text: `[Eksekusi Dilanjutkan]`,
-                                edit: approvalMsgKey
-                            });
-                        } catch (e) {}
-                    }
-                } else {
+                for (const r of pendingResList) {
                     try {
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ decision: 'deny', reason: 'Ditolak oleh Owner melalui WhatsApp' }));
+                        r.writeHead(200, { 'Content-Type': 'application/json' });
+                        r.end(JSON.stringify({ decision, ...(reason ? { reason } : {}) }));
                     } catch (e) {}
+                }
 
-                    if (approvalMsgKey) {
-                        try {
-                            await bob.sendMessage(m.chat, {
-                                text: `[Eksekusi Dibatalkan oleh Owner]`,
-                                edit: approvalMsgKey
-                            });
-                        } catch (e) {}
-                    }
+                if (approvalMsgKey) {
+                    try {
+                        await bob.sendMessage(m.chat, {
+                            text: isYes ? `[Eksekusi Dilanjutkan]` : `[Eksekusi Dibatalkan oleh Owner]`,
+                            edit: approvalMsgKey
+                        });
+                    } catch (e) {}
                 }
 
                 // Lanjutkan pengeditan pada pesan live logs pertama tanpa membuat gelembung log baru!
@@ -739,11 +756,14 @@ module.exports = {
 
         // 2. FITUR /BTW (Interupsi / Tanya Status Task Berjalan)
         if (/^(\/|\.)?btw(\s|$)/i.test(text)) {
+            if (m._btwHandled) return true;
+            m._btwHandled = true;
+
             const query = text.replace(/^(\/|\.)?btw\s*/i, '').trim();
 
             if (!activeTask) {
                 const sess = sessions.get(m.chat);
-                return m.reply(
+                await m.reply(
                     `*Tidak Ada Task Antigravity yang Sedang Berjalan*\n\n` +
                     `*ID Percakapan:* ${sess?.conversationId ? `\`${sess.conversationId}\`` : 'Belum aktif'}\n` +
                     `*Mode Interaktif:* ${sess?.isInteractive ? 'Aktif' : 'Nonaktif'}\n\n` +
@@ -751,6 +771,7 @@ module.exports = {
                     `*${prefix}agy <instruksi Anda>*\n` +
                     `*${prefix}agy --sesi* (untuk mode chat interaktif tanpa prefix)`
                 );
+                return true;
             }
 
             const elapsedSec = Math.floor((Date.now() - activeTask.startTime) / 1000);
@@ -770,7 +791,8 @@ module.exports = {
                     btwResponse += `\n*Catatan:* Saat ini task sedang dijeda menunggu persetujuan Anda (Ketik Y/N).`;
                 }
 
-                return m.reply(btwResponse);
+                await m.reply(btwResponse);
+                return true;
             } else {
                 let overview =
                     `*Status Task Antigravity (/btw)*\n` +
@@ -783,7 +805,8 @@ module.exports = {
                     `_Langkah Terakhir:_\n` +
                     (activeTask.actions.slice(-4).map(a => `${a.statusSymbol} ${a.display}`).join('\n') || '_(Belum ada tool)_');
 
-                return m.reply(overview);
+                await m.reply(overview);
+                return true;
             }
         }
 
@@ -821,6 +844,8 @@ module.exports = {
         }
 
         if (command === 'btw') {
+            if (m._btwHandled) return true;
+            m._btwHandled = true;
             return module.exports.before(m, { bob, budy: `/btw ${text}`, isCreator: true, prefix });
         }
 
@@ -1031,6 +1056,10 @@ module.exports = {
             `  * Eksekusi terminal non-fatal (curl, wget, node, npm test, git status/add/commit, cat, ls) dan penulisan/pengeditan plugin di './perintah/' SUDAH DISETUJUI OTOMATIS oleh sistem tanpa memerlukan konfirmasi manual.\n` +
             `  * HANYA aksi fatal/destruktif (seperti rm -rf, git reset --hard, modifikasi file inti bot seperti main.js/control.js/config.js, atau manipulasi sistem) yang memicu konfirmasi izin manual.\n` +
             `  * Jika terdapat beberapa opsi pendekatan kode, arsitektur alternatif, atau butuh pertimbangan pengguna ("rekomendasi kode / pilihan kode"), sampaikan opsi-opsi tersebut dan berikan rekomendasi terbaik Anda secara jelas dan ringkas di pesan chat agar pengguna dapat memilihnya.\n` +
+            `- KEBIJAKAN RESTART PM2 & PENYELESAIAN KODE:\n` +
+            `  * DILARANG langsung me-restart PM2 di tengah-tengah penulisan kode atau tepat setelah membuat satu file.\n` +
+            `  * JIKA HANYA MENAMBAH ATAU MENGUBAH PLUGIN/PERINTAH DI './perintah/', TIDAK PERLU me-restart PM2 sama sekali karena bot menggunakan hot-reload otomatis dari lib/pluginManager.js.\n` +
+            `  * JIKA MELAKUKAN PERUBAHAN BESAR (misal: modul baru di lib/, penambahan scraper, atau modifikasi logic inti): Selesaikan DAHULU SELURUH penulisan semua file yang diperlukan, cek validasi syntax (node -c), konfirmasi selesai, baru kemudian lakukan restart PM2 jika memang diperlukan.\n` +
             `- GAYA BICARA & KARAKTER: Berikan penjelasan dan respon dengan bahasa santai gaul tongkrongan Indonesia (lu, gua, wir), sedikit tengil dan akrab tapi tetap handal dan presisi dalam hal kode. HINDARI bahasa kaku/formal seperti robot atau asisten korporat agar obrolan terasa natural dan tidak terlihat ke-ai-ai-an.\n\n` +
             `[INSTRUKSI PENGGUNA]:\n`;
 
@@ -1193,5 +1222,10 @@ module.exports = {
             activeTasks.delete(m.chat);
             m.reply(`[ERROR] Gagal menjalankan Antigravity CLI: ${err.message}`);
         });
+    },
+
+    hasPendingApproval: (chatId) => {
+        const task = activeTasks.get(chatId);
+        return !!(task && task.pendingApproval);
     }
 };
