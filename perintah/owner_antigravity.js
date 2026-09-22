@@ -897,16 +897,16 @@ module.exports = {
             return module.exports.executeTask(bob, m, text, { isCreator, prefix, session });
         }
 
-        // Jalankan model AI QwQ-32B untuk obrolan santai (hemat token Antigravity)
+        // Jalankan model AI Santai (Faa AI-Promt) untuk obrolan santai (hemat token Antigravity)
         try {
             if (bob?.sendPresenceUpdate) {
                 await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
             }
-            const replyText = await aiRouter.fetchQwQ(text, session.history);
-            aiRouter.recordTurn(m.chat, text, replyText, 'qwq');
+            const replyText = await aiRouter.fetchCasualAi(text, session.history);
+            aiRouter.recordTurn(m.chat, text, replyText, 'casual');
             return m.reply(replyText);
         } catch (err) {
-            console.error('[Auto-Switch QwQ Error]:', err.message);
+            console.error('[Auto-Switch Casual AI Error]:', err.message);
             // Fallback otomatis ke Antigravity jika API eksternal mengalami kendala
             return module.exports.executeTask(bob, m, text, { isCreator, prefix, session });
         }

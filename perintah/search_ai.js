@@ -24,17 +24,17 @@ async function fetchDeepAi(promptText) {
 }
 
 /**
- * Dapatkan respon AI dengan prioritas QwQ-32B (tengil & joms jomok persona)
+ * Dapatkan respon AI dengan prioritas Casual AI Faa (tengil & joms jomok persona)
  */
 async function getAiResponse(text, history = []) {
     try {
-        const reply = await aiRouter.fetchQwQ(text, history);
+        const reply = await aiRouter.fetchCasualAi(text, history);
         if (reply) return reply;
     } catch (e) {
-        console.error('[search_ai] QwQ API error, fallback to Deep-AI:', e.message);
+        console.error('[search_ai] Casual AI error, fallback to Deep-AI:', e.message);
     }
 
-    // Fallback ke Deep-AI jika QwQ mengalami kendala
+    // Fallback ke Deep-AI jika Casual AI mengalami kendala
     return await fetchDeepAi(text);
 }
 
