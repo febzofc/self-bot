@@ -787,7 +787,21 @@ module.exports = {
             }
         }
 
-        // 3. SESI INTERAKTIF (Chat tanpa prefix jika --sesi aktif)
+        // 3. DETEKSI KOREKSI OTOMATIS DARI OWNER
+        if (aiRouter.learningManager && aiRouter.learningManager.isCorrection(text)) {
+            const learnRes = aiRouter.learningManager.learnFromCorrection(m.chat, text, session?.history);
+            if (learnRes.learned) {
+                await m.reply(
+                    `🧠 *Pola Baru Berhasil Dipelajari!*\n\n` +
+                    `• *Instruksi Dipelajari:* _"${learnRes.learnedPhrase}"_\n` +
+                    `• *Tindakan:* Dicatat ke memori pembelajaran agar selalu diarahkan ke Antigravity CLI (\`agy\`).\n\n` +
+                    `_Mengalihkan tugas sebelumnya ke Antigravity CLI sekarang..._`
+                );
+                return module.exports.executeTask(bob, m, learnRes.previousPrompt, { isCreator: true, prefix, session });
+            }
+        }
+
+        // 4. SESI INTERAKTIF (Chat tanpa prefix jika --sesi aktif)
         const session = sessions.get(m.chat);
         if (session && session.isInteractive && !isCmd && !text.startsWith('.')) {
             module.exports.dispatch(bob, m, text, { isCreator: true, prefix });
@@ -821,18 +835,19 @@ module.exports = {
                 `*Perintah:*\n` +
                 `*${prefix + command} <instruksi>*\n` +
                 `_Contoh: ${prefix + command} buatkan plugin kalkulator_\n` +
-                `_Contoh: ${prefix + command} halo bro lagi apa (otomatis hemat token via QwQ)_\n\n` +
-                `*Fitur Auto-Switch Cerdas:*\n` +
-                `• Obrolan santai/chitchat otomatis menggunakan model QwQ-32B untuk menghemat token Antigravity.\n` +
-                `• Coding, search web, & eksekusi terminal otomatis dialihkan ke Antigravity CLI.\n` +
+                `_Contoh: ${prefix + command} cek pembaruan yang sudah terjadi untuk di upload ke github_\n\n` +
+                `*Fitur Auto-Switch & Self-Learning:*\n` +
+                `• Coding, git/github, changelog, search web otomatis ditangani oleh Antigravity CLI.\n` +
+                `• Bot memiliki memori pembelajaran yang otomatis merekam pola baru jika dikoreksi.\n` +
                 `• Sesi riwayat percakapan tersambung mulus dalam 1 konteks obrolan.\n\n` +
+                `*Sistem Pembelajaran AI:*\n` +
+                `• *${prefix + command} --learn <frasa>* (Latih pola baru)\n` +
+                `• *${prefix + command} --patterns* (Lihat memori pola)\n` +
+                `• *${prefix + command} --unlearn <kata_kunci>* (Hapus pola)\n\n` +
                 `*Sesi Chat Interaktif:*\n` +
-                `*${prefix + command} --sesi*\n` +
-                `_Masuk mode chat langsung tanpa prefix._\n\n` +
-                `*${prefix + command} --stop*\n` +
-                `_Keluar dari mode sesi chat interaktif._\n\n` +
-                `*${prefix + command} --reset*\n` +
-                `_Reset riwayat percakapan dan mulai dari awal._\n\n` +
+                `• *${prefix + command} --sesi* (Masuk mode chat langsung tanpa prefix)\n` +
+                `• *${prefix + command} --stop* (Keluar dari mode sesi)\n` +
+                `• *${prefix + command} --reset* (Reset riwayat percakapan)\n\n` +
                 `*Monitoring Progres:*\n` +
                 `*/btw* atau *${prefix}btw*\n` +
                 `_Cek status live progress task Antigravity yang sedang berjalan._\n\n` +
@@ -841,7 +856,36 @@ module.exports = {
             );
         }
 
-        // 2. Mode Kontrol Sesi
+        // 2. Mode Pembelajaran AI
+        if (cleanText.startsWith('--learn') || cleanText.startsWith('--pelajari')) {
+            const targetPattern = cleanText.replace(/^--(learn|pelajari)\s*/i, '').trim();
+            if (!targetPattern) return m.reply(`Format salah! Contoh:\n*${prefix + command} --learn cek pembaruan repo github*`);
+            aiRouter.learningManager.learnPhrase(targetPattern, 'Manual via agy command');
+            return m.reply(`🧠 *Pola Berhasil Dipelajari*\nFrasa _"${targetPattern}"_ telah dicatat ke memori pembelajaran dan akan selalu diarahkan ke Antigravity CLI (\`agy\`).`);
+        }
+
+        if (cleanText === '--patterns' || cleanText === '--pola') {
+            const stats = aiRouter.learningManager.getStats();
+            let msg = `🧠 *Memori Pola Pembelajaran AI*\n` +
+                      `----------------------------------------\n` +
+                      `• Total Pola Regex: *${stats.totalPatterns}*\n` +
+                      `• Total Frasa Belajar: *${stats.totalPhrases}*\n` +
+                      `• Total Koreksi Dicatat: *${stats.totalCorrections}*\n\n` +
+                      `*Daftar Frasa Pembelajaran Terkini:*\n` +
+                      stats.phrases.slice(-12).map((p, idx) => `${idx + 1}. _${p}_`).join('\n') +
+                      `\n\n_Untuk menambah pola: *${prefix + command} --learn <frasa>*\n` +
+                      `_Untuk menghapus pola: *${prefix + command} --unlearn <kata_kunci>_*`;
+            return m.reply(msg);
+        }
+
+        if (cleanText.startsWith('--unlearn') || cleanText.startsWith('--hapuspola')) {
+            const targetKey = cleanText.replace(/^--(unlearn|hapuspola)\s*/i, '').trim();
+            if (!targetKey) return m.reply(`Contoh:\n*${prefix + command} --unlearn github*`);
+            const ok = aiRouter.learningManager.unlearn(targetKey);
+            return m.reply(ok ? `✅ Pola yang cocok dengan _"${targetKey}"_ berhasil dihapus dari memori pembelajaran.` : `❌ Pola tidak ditemukan.`);
+        }
+
+        // 3. Mode Kontrol Sesi
         if (cleanText === '--stop') {
             aiRouter.stopInteractive(m.chat);
             return m.reply('*Sesi Interaktif Dinonaktifkan.*\nGunakan prefix seperti biasa untuk menjalankan perintah.');
@@ -865,7 +909,7 @@ module.exports = {
                     `*Sesi Interaktif Antigravity & AI Dimulai*\n\n` +
                     `Anda dapat langsung mengobrol atau mengirim instruksi coding *(tanpa prefix)*.\n` +
                     `• Obrolan santai otomatis menggunakan model alternatif (hemat token).\n` +
-                    `• Coding & pencarian web otomatis ditangani oleh Antigravity CLI.\n` +
+                    `• Coding, git/github, changelog, search web otomatis ditangani oleh Antigravity CLI.\n` +
                     `• Riwayat percakapan tetap tersambung secara seamless.\n\n` +
                     `Gunakan */btw* kapan saja untuk memeriksa progres task.\n` +
                     `Ketik *${prefix + command} --stop* untuk keluar dari sesi.\n` +
@@ -874,8 +918,11 @@ module.exports = {
             }
         }
 
-        // 3. Jalankan melalui dispatcher pintar (Auto-Switch)
-        return module.exports.dispatch(bob, m, cleanText, { isCreator: true, prefix });
+        // 4. Jalankan melalui dispatcher pintar
+        // Karena owner secara eksplisit mengetik perintah .agy, prioritaskan eksekusi Antigravity
+        // kecuali jika instruksi hanyalah sapaan santai biasa 1 kata (hemat token)
+        const isPureGreeting = /^(halo|hai|hi|hey|p|pagi|siang|sore|malam|tes|test|assalamualaikum)$/i.test(cleanText);
+        return module.exports.dispatch(bob, m, cleanText, { isCreator: true, prefix, forceAgy: !isPureGreeting });
     },
 
     /**

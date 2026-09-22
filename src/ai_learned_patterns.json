@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "learnedPatterns": [
+    {
+      "id": "github_vcs_workflow",
+      "regex": "(?i)(upload|unggah|push|kirim|tarik|pull|sync|sinkron|sinkronkan|clone|branch|commit|komit).*?(github|gitlab|repo|repository)|(github|gitlab|repo|repository).*?(upload|unggah|push|kirim|sync|sinkron|sinkronkan|commit|komit|pembaruan|update|perubahan)",
+      "target": "agy",
+      "reason": "Alur kerja Git/GitHub dan sinkronisasi repositori",
+      "learnedAt": 1790081490499,
+      "hitCount": 0
+    },
+    {
+      "id": "project_updates_changelog",
+      "regex": "(?i)(cek|buatkan|buat|bikin|lihat|tampilkan|rangkum|ringkas|daftar|siapkan|tulis).*?(pembaruan|perubahan|changelog|catatan\\s*rilis|release\\s*note|riwayat\\s*commit|log\\s*commit|diff)",
+      "target": "agy",
+      "reason": "Pemeriksaan dan pembuatan changelog/pembaruan repositori",
+      "learnedAt": 1790081490499,
+      "hitCount": 0
+    },
+    {
+      "id": "updates_already_happened",
+      "regex": "(?i)(pembaruan|perubahan|update).*?(sudah|telah|barusan).*?(terjadi|dibuat|diupdate|dilakukan|ditambahkan)",
+      "target": "agy",
+      "reason": "Pemeriksaan riwayat perubahan kode yang sudah terjadi",
+      "learnedAt": 1790081490499,
+      "hitCount": 0
+    },
+    {
+      "id": "github_destination_upload",
+      "regex": "(?i)untuk\\s+(di\\s*)?(upload|unggah|push|kirim|rilis|sync)\\s+(ke\\s+)?(github|repo|repository)",
+      "target": "agy",
+      "reason": "Instruksi persiapan pembaruan untuk diupload ke GitHub",
+      "learnedAt": 1790081490499,
+      "hitCount": 0
+    },
+    {
+      "id": "codebase_inspection",
+      "regex": "(?i)(apa\\s+(saja|aja|an\\s+aja)|gimana)\\s+(yang\\s+)?(baru|diupdate|diubah|diganti|diperbarui|ditambahkan|sudah\\s+terjadi|terjadi)\\s+(di|pada)?\\s*(bot|repo|sc|skrip|script|kodingan|kode)?",
+      "target": "agy",
+      "reason": "Pertanyaan seputar perubahan kode dan status terkini codebase bot",
+      "learnedAt": 1790081490499,
+      "hitCount": 0
+    }
+  ],
+  "learnedPhrases": [
+    "cek pembaruan yang sudah terjadi untuk di upload ke github saya",
+    "buatkan pembaruan yang sudah terjadi untuk di upload ke github saya",
+    "upload ke github",
+    "push ke github",
+    "upload ke repo",
+    "sinkron ke github",
+    "sinkronkan github saya",
+    "bantu upload project ke github",
+    "cek apa saja yang baru di bot",
+    "apa aja update terbaru",
+    "tampilkan changelog update",
+    "bikin release note untuk github",
+    "rangkum pembaruan terakhir",
+    "push update ke github saya",
+    "cek commit terbaru",
+    "komit perubahan tadi",
+    "apa saja yang sudah diubah",
+    "cek perubahan kodingan",
+    "update ke repo github",
+    "tolong push ke github",
+    "cek riwayat commit terakhir",
+    "bikin commit message untuk update ini",
+    "cek riwayat repo ini"
+  ],
+  "corrections": [
+    {
+      "prompt": "cek riwayat repo ini",
+      "correction": "itu agy bukan ai biasa",
+      "timestamp": 1790081660498
+    }
+  ]
+}

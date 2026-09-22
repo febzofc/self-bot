@@ -7,7 +7,7 @@ const aiSessions = aiRouter.sharedSessions;
 const SESSION_TIMEOUT = 10 * 60 * 1000; // 10 Menit
 
 /**
- * Fallback API Deep-AI jika QwQ sedang offline
+ * Fallback API Deep-AI jika QwQ / Casual AI sedang offline
  */
 async function fetchDeepAi(promptText) {
     const res = await axios.get('https://api-faa.my.id/faa/deep-ai', {
@@ -25,7 +25,7 @@ async function fetchDeepAi(promptText) {
 }
 
 /**
- * Dapatkan respon AI dengan prioritas Casual AI Faa (tengil & joms jomok persona)
+ * Dapatkan respon AI dengan prioritas Casual AI Faa (tengil & jokes persona)
  */
 async function getAiResponse(text, history = []) {
     try {
@@ -82,8 +82,26 @@ module.exports = {
         // Reset timer sesi
         refreshSessionTimer(bob, m.chat, sessionId);
 
-        // Jika user adalah owner dan permintaannya butuh Antigravity (coding/vps/search web)
         const ownerAuth = isCreator || isOwner;
+
+        // 1. Cek Koreksi Otomatis dari Owner ("itu agy", "kenapa ke ai biasa", dll.)
+        if (ownerAuth && aiRouter.learningManager && aiRouter.learningManager.isCorrection(text)) {
+            const learnRes = aiRouter.learningManager.learnFromCorrection(m.chat, text, session.history);
+            if (learnRes.learned) {
+                await m.reply(
+                    `🧠 *Pola Baru Berhasil Dipelajari!*\n\n` +
+                    `• *Instruksi Dipelajari:* _"${learnRes.learnedPhrase}"_\n` +
+                    `• *Tindakan:* Dicatat ke memori agar selalu dialihkan ke Antigravity CLI (\`agy\`).\n\n` +
+                    `_Mengalihkan tugas sebelumnya ke Antigravity CLI sekarang..._`
+                );
+                const agyPlugin = require('./owner_antigravity.js');
+                if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
+                    return agyPlugin.executeTask(bob, m, learnRes.previousPrompt, { isCreator: true, prefix, session });
+                }
+            }
+        }
+
+        // 2. Jika user adalah owner dan permintaannya butuh Antigravity (coding/vps/search web/git/github)
         if (ownerAuth && aiRouter.needsAntigravity(text, session.history)) {
             try {
                 const agyPlugin = require('./owner_antigravity.js');
@@ -104,7 +122,7 @@ module.exports = {
             const replyText = await getAiResponse(text, session.history);
 
             // Simpan ke riwayat percakapan sesi
-            aiRouter.recordTurn(m.chat, text, replyText, 'qwq');
+            aiRouter.recordTurn(m.chat, text, replyText, 'casual');
 
             await m.reply(replyText);
 
@@ -149,6 +167,40 @@ module.exports = {
             return m.reply('✅ *Konteks & Riwayat Sesi AI Direset.*');
         }
 
+        // Sub-opsi: Melatih pembelajaran AI (Learn pattern)
+        if (argText.startsWith('--learn') || argText.startsWith('--pelajari')) {
+            if (!ownerAuth) return m.reply('[Akses Ditolak] Fitur melatih memori AI hanya untuk Owner.');
+            const targetPattern = argText.replace(/^--(learn|pelajari)\s*/i, '').trim();
+            if (!targetPattern) return m.reply(`Format salah! Contoh:\n*${prefix + command} --learn cek pembaruan repo github*`);
+            aiRouter.learningManager.learnPhrase(targetPattern, 'Manual via command');
+            return m.reply(`🧠 *Pola Berhasil Dipelajari*\nFrasa _"${targetPattern}"_ telah dicatat ke memori pembelajaran dan akan selalu diarahkan ke Antigravity CLI (\`agy\`).`);
+        }
+
+        // Sub-opsi: Melihat memori pola pembelajaran
+        if (argText === '--patterns' || argText === '--pola') {
+            if (!ownerAuth) return m.reply('[Akses Ditolak] Fitur melihat memori pembelajaran AI hanya untuk Owner.');
+            const stats = aiRouter.learningManager.getStats();
+            let msg = `🧠 *Memori Pola Pembelajaran AI*\n` +
+                      `----------------------------------------\n` +
+                      `• Total Pola Regex: *${stats.totalPatterns}*\n` +
+                      `• Total Frasa Belajar: *${stats.totalPhrases}*\n` +
+                      `• Total Koreksi Dicatat: *${stats.totalCorrections}*\n\n` +
+                      `*Daftar Frasa Pembelajaran Terkini:*\n` +
+                      stats.phrases.slice(-12).map((p, idx) => `${idx + 1}. _${p}_`).join('\n') +
+                      `\n\n_Untuk menambah pola baru: *${prefix + command} --learn <frasa>*\n` +
+                      `_Untuk menghapus pola: *${prefix + command} --unlearn <kata_kunci>_*`;
+            return m.reply(msg);
+        }
+
+        // Sub-opsi: Hapus pola pembelajaran (Unlearn)
+        if (argText.startsWith('--unlearn') || argText.startsWith('--hapuspola')) {
+            if (!ownerAuth) return m.reply('[Akses Ditolak] Fitur menghapus memori pembelajaran AI hanya untuk Owner.');
+            const targetKey = argText.replace(/^--(unlearn|hapuspola)\s*/i, '').trim();
+            if (!targetKey) return m.reply(`Contoh:\n*${prefix + command} --unlearn github*`);
+            const ok = aiRouter.learningManager.unlearn(targetKey);
+            return m.reply(ok ? `✅ Pola yang cocok dengan _"${targetKey}"_ berhasil dihapus dari memori pembelajaran.` : `❌ Pola tidak ditemukan.`);
+        }
+
         // Sub-opsi: Memulai sesi interaktif
         if (argText.startsWith('--sesi')) {
             const extraQuery = argText.replace(/^--sesi\s*/i, '').trim();
@@ -157,7 +209,24 @@ module.exports = {
             refreshSessionTimer(bob, m.chat, sessionId);
 
             if (extraQuery) {
-                // Jika owner meminta tugas coding/terminal via .ai
+                // Jika koreksi
+                if (ownerAuth && aiRouter.learningManager && aiRouter.learningManager.isCorrection(extraQuery)) {
+                    const learnRes = aiRouter.learningManager.learnFromCorrection(m.chat, extraQuery, session.history);
+                    if (learnRes.learned) {
+                        await m.reply(
+                            `🧠 *Pola Baru Berhasil Dipelajari!*\n\n` +
+                            `• *Instruksi Dipelajari:* _"${learnRes.learnedPhrase}"_\n` +
+                            `• *Tindakan:* Dicatat ke memori pembelajaran agar selalu diarahkan ke Antigravity CLI (\`agy\`).\n\n` +
+                            `_Mengalihkan tugas sebelumnya ke Antigravity CLI sekarang..._`
+                        );
+                        const agyPlugin = require('./owner_antigravity.js');
+                        if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
+                            return agyPlugin.executeTask(bob, m, learnRes.previousPrompt, { isCreator: true, prefix, session });
+                        }
+                    }
+                }
+
+                // Jika owner meminta tugas coding/terminal/git via .ai
                 if (ownerAuth && aiRouter.needsAntigravity(extraQuery, session.history)) {
                     const agyPlugin = require('./owner_antigravity.js');
                     if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
@@ -170,7 +239,7 @@ module.exports = {
                         await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
                     }
                     const replyText = await getAiResponse(extraQuery, session.history);
-                    aiRouter.recordTurn(m.chat, extraQuery, replyText, 'qwq');
+                    aiRouter.recordTurn(m.chat, extraQuery, replyText, 'casual');
                     await m.reply(replyText);
 
                     // Reaksi stiker ekspresi otomatis (peluang 35%)
@@ -186,7 +255,8 @@ module.exports = {
                     `🤖 *Sesi Interaktif AI & Antigravity Dimulai!*\n\n` +
                     `Kamu sekarang berada dalam mode percakapan langsung *(tanpa prefix)*:\n` +
                     `• Obrolan santai otomatis menggunakan model alternatif (hemat token).\n` +
-                    `• Coding & search web otomatis ditangani secara presisi.\n` +
+                    `• Coding, git/github, search web otomatis ditangani oleh Antigravity CLI.\n` +
+                    `• Bot otomatis belajar jika terjadi kekeliruan pemilihan model.\n` +
                     `• Ketik *${prefix + command} --stop* untuk mengakhiri sesi.\n` +
                     `• Ketik *${prefix + command} --reset* untuk mereset riwayat sesi.\n` +
                     `• Sesi akan otomatis berakhir jika tidak aktif selama *10 menit*.`
@@ -198,7 +268,24 @@ module.exports = {
         if (argText.length > 0) {
             const session = aiRouter.getOrCreateSession(sessionId);
 
-            // Jika owner meminta coding / search web melalui .ai
+            // Cek Koreksi Otomatis dari Owner
+            if (ownerAuth && aiRouter.learningManager && aiRouter.learningManager.isCorrection(argText)) {
+                const learnRes = aiRouter.learningManager.learnFromCorrection(m.chat, argText, session.history);
+                if (learnRes.learned) {
+                    await m.reply(
+                        `🧠 *Pola Baru Berhasil Dipelajari!*\n\n` +
+                        `• *Instruksi Dipelajari:* _"${learnRes.learnedPhrase}"_\n` +
+                        `• *Tindakan:* Dicatat ke memori pembelajaran agar selalu diarahkan ke Antigravity CLI (\`agy\`).\n\n` +
+                        `_Mengalihkan tugas sebelumnya ke Antigravity CLI sekarang..._`
+                    );
+                    const agyPlugin = require('./owner_antigravity.js');
+                    if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
+                        return agyPlugin.executeTask(bob, m, learnRes.previousPrompt, { isCreator: true, prefix, session });
+                    }
+                }
+            }
+
+            // Jika owner meminta coding / search web / git / vps melalui .ai
             if (ownerAuth && aiRouter.needsAntigravity(argText, session.history)) {
                 const agyPlugin = require('./owner_antigravity.js');
                 if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
@@ -211,7 +298,7 @@ module.exports = {
                     await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
                 }
                 const replyText = await getAiResponse(argText, session.history);
-                aiRouter.recordTurn(m.chat, argText, replyText, 'qwq');
+                aiRouter.recordTurn(m.chat, argText, replyText, 'casual');
                 await m.reply(replyText);
 
                 // Reaksi stiker ekspresi otomatis (peluang 35%)
@@ -232,11 +319,16 @@ module.exports = {
             `1️⃣ *Tanya Langsung:*\n` +
             `• *${prefix + command} <pertanyaan / instruksi>*\n` +
             `_Contoh: ${prefix + command} halo wir lagi ngapain_\n` +
-            `_Contoh: ${prefix + command} buatkan plugin kalkulator_\n\n` +
+            `_Contoh: ${prefix + command} buatkan plugin kalkulator_\n` +
+            `_Contoh: ${prefix + command} cek pembaruan yang sudah terjadi untuk di upload ke github_\n\n` +
             `2️⃣ *Mode Sesi Percakapan:*\n` +
             `• *${prefix + command} --sesi*\n` +
             `_Mengobrol langsung tanpa prefix dengan riwayat obrolan tersambung._\n\n` +
-            `3️⃣ *Kontrol Sesi:*\n` +
+            `3️⃣ *Sistem Pembelajaran AI:*\n` +
+            `• *${prefix + command} --learn <frasa>*\n` +
+            `• *${prefix + command} --patterns*\n` +
+            `• *${prefix + command} --unlearn <kata_kunci>*\n\n` +
+            `4️⃣ *Kontrol Sesi:*\n` +
             `• *${prefix + command} --stop* (Keluar dari sesi interaktif)\n` +
             `• *${prefix + command} --reset* (Mulai sesi baru dari nol)\n\n` +
             `*Status Sesi:* ${sess?.isInteractive ? 'Aktif' : 'Nonaktif'}`
