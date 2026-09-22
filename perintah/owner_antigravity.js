@@ -484,19 +484,25 @@ async function handleIncomingPermissionRequest(data, res) {
 
     const { bob, chatId } = targetTask;
 
-    // 1. Finalisasi pesan log yang sedang diedit sebelumnya
-    if (targetTask.lastLogMsgKey) {
-        const finalizedLog = (targetTask.renderedLogText || '').trim() + '\n\n[Menunggu konfirmasi aksi kritis...]';
+    // 1. Perbarui pesan live logs utama agar menampilkan status aksi fatal apa yang sedang menunggu persetujuan
+    targetTask.pendingApprovalReason = data.fatalReason || 'Aksi berisiko tinggi / fatal';
+    targetTask.pendingApprovalTool = data.toolName;
+    targetTask.pendingApprovalArgs = data.toolArgs;
+
+    const logKey = targetTask.mainLogMsgKey || targetTask.lastLogMsgKey;
+    if (logKey) {
+        targetTask.lastLogMsgKey = logKey;
+        const updatedLog = renderLiveLogText(targetTask);
         try {
             await bob.sendMessage(chatId, {
-                text: finalizedLog,
-                edit: targetTask.lastLogMsgKey
+                text: updatedLog,
+                edit: logKey
             });
+            targetTask.renderedLogText = updatedLog;
         } catch (e) {}
-        targetTask.lastLogMsgKey = null;
     }
 
-    // 2. Kirim PESAN BARU untuk konfirmasi persetujuan aksi kritis / fatal
+    // 2. Kirim PESAN BARU untuk konfirmasi persetujuan dengan MEMBALAS (reply/quote) pesan live log utama
     const toolDetails = formatToolDetailForApproval(data.toolName, data.toolArgs, data.fatalReason);
     const approvalPrompt = 
         `[KONFIRMASI AKSI KRITIS / FATAL]\n` +
@@ -509,9 +515,14 @@ async function handleIncomingPermissionRequest(data, res) {
 
     let sentApprovalMsg = null;
     try {
-        sentApprovalMsg = await bob.sendMessage(chatId, { text: approvalPrompt });
+        const quoteOpt = targetTask.initLogMsg ? { quoted: targetTask.initLogMsg } : {};
+        sentApprovalMsg = await bob.sendMessage(chatId, { text: approvalPrompt }, quoteOpt);
     } catch (e) {
-        console.error('Gagal mengirim pesan persetujuan ke WA:', e);
+        try {
+            sentApprovalMsg = await bob.sendMessage(chatId, { text: approvalPrompt });
+        } catch (err) {
+            console.error('Gagal mengirim pesan persetujuan ke WA:', err);
+        }
     }
 
     // 3. Simpan state pending approval
@@ -530,12 +541,22 @@ async function handleIncomingPermissionRequest(data, res) {
                 if (sentApprovalMsg) {
                     try {
                         await bob.sendMessage(chatId, {
-                            text: `[Waktu Konfirmasi Habis] Aksi otomatis dibatalkan oleh sistem.`,
+                            text: `[Waktu Konfirmasi Habis] Eksekusi dibatalkan oleh sistem.`,
                             edit: sentApprovalMsg.key
                         });
                     } catch (e) {}
                 }
+
                 targetTask.pendingApproval = null;
+                targetTask.pendingApprovalReason = null;
+
+                // Lanjutkan pengeditan pada pesan live logs utama
+                const currentKey = targetTask.mainLogMsgKey || targetTask.lastLogMsgKey;
+                if (currentKey) {
+                    targetTask.lastLogMsgKey = currentKey;
+                    targetTask.latestThought = '✖ Waktu konfirmasi habis, melanjutkan proses tanpa aksi ini...';
+                    scheduleLogUpdate(targetTask);
+                }
             }
         }, 120000)
     };
@@ -560,6 +581,10 @@ function renderLiveLogText(task) {
         result += '● Memproses...';
     }
 
+    if (task.pendingApprovalReason) {
+        result += `\n\n⏸ *Menunggu Persetujuan:* ${task.pendingApprovalReason}`;
+    }
+
     return result.trim();
 }
 
@@ -567,12 +592,14 @@ function renderLiveLogText(task) {
  * Update pesan log dengan sistem edit pesan WhatsApp
  */
 function scheduleLogUpdate(task) {
-    if (!task || !task.lastLogMsgKey) return;
+    const currentKey = task.mainLogMsgKey || task.lastLogMsgKey;
+    if (!task || !currentKey) return;
     if (task.editTimeout) return;
 
     task.editTimeout = setTimeout(async () => {
         task.editTimeout = null;
-        if (!task.lastLogMsgKey) return;
+        const logKey = task.mainLogMsgKey || task.lastLogMsgKey;
+        if (!logKey) return;
 
         const rendered = renderLiveLogText(task);
         if (!rendered || rendered === task.renderedLogText) return;
@@ -581,7 +608,7 @@ function scheduleLogUpdate(task) {
         try {
             await task.bob.sendMessage(task.chatId, {
                 text: rendered,
-                edit: task.lastLogMsgKey
+                edit: logKey
             });
         } catch (e) {
             // Abaikan rate limit sesaat
@@ -663,6 +690,9 @@ module.exports = {
                 clearTimeout(activeTask.pendingApproval.timer);
                 const { res, approvalMsgKey } = activeTask.pendingApproval;
                 activeTask.pendingApproval = null;
+                activeTask.pendingApprovalReason = null;
+                activeTask.pendingApprovalTool = null;
+                activeTask.pendingApprovalArgs = null;
 
                 if (isYes) {
                     try {
@@ -673,7 +703,7 @@ module.exports = {
                     if (approvalMsgKey) {
                         try {
                             await bob.sendMessage(m.chat, {
-                                text: `[Persetujuan Diberikan] Melanjutkan eksekusi...`,
+                                text: `[Eksekusi Dilanjutkan]`,
                                 edit: approvalMsgKey
                             });
                         } catch (e) {}
@@ -687,22 +717,19 @@ module.exports = {
                     if (approvalMsgKey) {
                         try {
                             await bob.sendMessage(m.chat, {
-                                text: `[Persetujuan Ditolak] Antigravity akan melanjutkan tanpa aksi ini.`,
+                                text: `[Eksekusi Dibatalkan oleh Owner]`,
                                 edit: approvalMsgKey
                             });
                         } catch (e) {}
                     }
                 }
 
-                // Kirim PESAN BARU untuk kanvas log lanjutan
-                try {
-                    const newLogMsg = await bob.sendMessage(m.chat, {
-                        text: `● Melanjutkan eksekusi...`
-                    });
-                    activeTask.lastLogMsgKey = newLogMsg.key;
-                    activeTask.renderedLogText = `● Melanjutkan eksekusi...`;
-                } catch (e) {
-                    console.error('Gagal mengirim pesan log lanjutan:', e);
+                // Lanjutkan pengeditan pada pesan live logs pertama tanpa membuat gelembung log baru!
+                const logKey = activeTask.mainLogMsgKey || activeTask.lastLogMsgKey;
+                if (logKey) {
+                    activeTask.lastLogMsgKey = logKey;
+                    activeTask.latestThought = isYes ? '● Melanjutkan eksekusi...' : '✖ Aksi dibatalkan, melanjutkan proses...';
+                    scheduleLogUpdate(activeTask);
                 }
 
                 return true;
@@ -898,9 +925,14 @@ module.exports = {
             startTime: Date.now(),
             actions: [],
             latestThought: '',
+            initLogMsg: initLogMsg, // Referensi pesan live logs pertama untuk quote reply
+            mainLogMsgKey: initLogMsg ? initLogMsg.key : null, // Kunci pesan live log pertama yang dipertahankan
             lastLogMsgKey: initLogMsg ? initLogMsg.key : null,
             renderedLogText: '● Memulai agent...',
             pendingApproval: null,
+            pendingApprovalReason: null,
+            pendingApprovalTool: null,
+            pendingApprovalArgs: null,
             bob,
             chatId: m.chat,
             editTimeout: null
@@ -1045,13 +1077,15 @@ module.exports = {
                 taskState.editTimeout = null;
             }
 
-            // Finalisasi log terakhir
-            if (taskState.lastLogMsgKey) {
+            // Finalisasi log terakhir pada pesan live logs pertama
+            taskState.pendingApprovalReason = null;
+            const finalKey = taskState.mainLogMsgKey || taskState.lastLogMsgKey;
+            if (finalKey) {
                 const finalRender = renderLiveLogText(taskState);
                 try {
                     await bob.sendMessage(m.chat, {
                         text: finalRender || '● Selesai',
-                        edit: taskState.lastLogMsgKey
+                        edit: finalKey
                     });
                 } catch (e) {}
             }
