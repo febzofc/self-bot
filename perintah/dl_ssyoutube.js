@@ -17,7 +17,7 @@ function sanitizeFileName(name) {
 }
 
 module.exports = {
-    CmD: ['ssyt', 'ssyoutube', 'ssmp3', 'ssmp4'],
+    CmD: ['ssyoutube'],
     aliases: ['ssyt', 'ssyoutube', 'ssmp3', 'ssmp4', 'ssyta', 'ssytv', 'ss128k'],
     categori: 'downloader',
     desc: 'Scraper YouTube MP3 (128kbps) & MP4 (All Resolusi) via ssyoutube.com.mx',

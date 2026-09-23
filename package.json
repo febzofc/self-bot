@@ -1,6 +1,6 @@
 {
   "name": "cimo-update",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "",
   "main": "main.js",
   "directories": {
@@ -26,6 +26,7 @@
   },
   "homepage": "https://github.com/febzofc/self-bot#readme",
   "dependencies": {
+    "@google/genai": "^2.24.0",
     "@vitalets/google-translate-api": "^9.2.1",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
     "aki-api": "^7.0.1",

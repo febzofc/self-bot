@@ -10,7 +10,7 @@ function formatSize(bytes) {
 }
 
 module.exports = {
-    CmD: ['tourlsc', 'tourl3'],
+    CmD: ['tourlsc'],
     aliases: ['tourlsc', 'tourl3', 'tourlprnt', 'prntsc', 'prnt'],
     categori: 'maker',
     desc: 'Upload gambar ke Lightshot (https://prnt.sc) & ambil raw direct image URL',

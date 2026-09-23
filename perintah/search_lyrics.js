@@ -3,7 +3,7 @@ const { prepareWAMessageMedia } = require('@whiskeysockets/baileys');
 const { getBuffer } = require('../lib/fungsi.js');
 
 module.exports = {
-    CmD: ['lirik', 'lyrics'],
+    CmD: ['lirik'],
     aliases: ['lirik', 'lyrics', 'lyric', 'carilirik'],
     categori: 'search',
     exec: async (m, { bob, prefix, command, text }) => {

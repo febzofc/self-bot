@@ -59,7 +59,7 @@ function formatNumber(num) {
 }
 
 module.exports = {
-    CmD: ['mcfind', 'mcstructure'],
+    CmD: ['mcstructure'],
     aliases: ['mcfind', 'mcstruktur', 'mcstructure', 'findstructure', 'struktur', 'mcmap'],
     categori: 'minecraft',
     filename: 'search_mcstructure.js',

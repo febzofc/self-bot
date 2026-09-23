@@ -36,7 +36,7 @@ function formatDate(dateVal, offset) {
 }
 
 module.exports = {
-    CmD: ['trackfoto', 'trakfoto'],
+    CmD: ['trackfoto'],
     aliases: ['trackfoto', 'trakfoto', 'trackimg', 'exiffoto', 'cekexif', 'locfoto'],
     categori: 'tools',
     desc: 'Melacak metadata EXIF foto (device, lokasi GPS, waktu, kamera)',

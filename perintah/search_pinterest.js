@@ -37,7 +37,7 @@ function shuffleArray(array) {
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 module.exports = {
-    CmD: ['pinterest', 'pin'],
+    CmD: ['pinterest'],
     aliases: ['pinterest', 'pin', 'pint', 'pinsearch'],
     categori: 'search',
     exec: async (m, { bob, args, text, prefix, command }) => {

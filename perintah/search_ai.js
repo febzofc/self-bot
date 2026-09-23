@@ -1,49 +1,44 @@
-const axios = require('axios');
-const aiRouter = require('../lib/aiSwitchRouter.js');
+'use strict';
+
+const geminiAi = require('../lib/geminiAi.js');
 const exprManager = require('../lib/expressionManager.js');
 
-// Sesi percakapan bersama
-const aiSessions = aiRouter.sharedSessions;
-const SESSION_TIMEOUT = 10 * 60 * 1000; // 10 Menit
+/**
+ * Penyimpanan sesi percakapan AI umum di memori
+ * Key: sessionId (chatId untuk personal chat, atau chatId_sender untuk grup)
+ * Value: { isInteractive: boolean, lastActive: number, timer: Timeout, lastInteractionId: string|null, history: [] }
+ */
+const aiSessions = new Map();
+const SESSION_TIMEOUT = 10 * 60 * 1000; // 10 Menit timeout tidak aktif
 
 /**
- * Fallback API Deep-AI jika QwQ / Casual AI sedang offline
+ * Dapatkan atau inisialisasi sesi percakapan
  */
-async function fetchDeepAi(promptText) {
-    const res = await axios.get('https://api-faa.my.id/faa/deep-ai', {
-        params: { text: promptText },
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        },
-        timeout: 35000
-    });
+function getOrCreateSession(sessionId) {
+    let session = aiSessions.get(sessionId);
+    const now = Date.now();
 
-    if (res.data && res.data.result) {
-        return res.data.result.trim();
+    if (!session || (now - session.lastActive > SESSION_TIMEOUT)) {
+        session = {
+            isInteractive: false,
+            lastActive: now,
+            timer: null,
+            lastInteractionId: null,
+            history: []
+        };
+        aiSessions.set(sessionId, session);
+    } else {
+        session.lastActive = now;
     }
-    throw new Error('Respon dari API AI tidak valid.');
+
+    return session;
 }
 
 /**
- * Dapatkan respon AI dengan prioritas Casual AI Faa (tengil & jokes persona)
- */
-async function getAiResponse(text, history = []) {
-    try {
-        const reply = await aiRouter.fetchCasualAi(text, history);
-        if (reply) return reply;
-    } catch (e) {
-        console.error('[search_ai] Casual AI error, fallback to Deep-AI:', e.message);
-    }
-
-    // Fallback ke Deep-AI jika Casual AI mengalami kendala
-    return await fetchDeepAi(text);
-}
-
-/**
- * Reset timer sesi percakapan
+ * Reset timer auto-close untuk sesi interaktif
  */
 function refreshSessionTimer(bob, chatId, sessionId) {
-    const session = aiRouter.getOrCreateSession(sessionId);
+    const session = getOrCreateSession(sessionId);
     if (!session) return;
 
     if (session.timer) {
@@ -51,32 +46,103 @@ function refreshSessionTimer(bob, chatId, sessionId) {
     }
 
     session.timer = setTimeout(async () => {
-        aiRouter.stopInteractive(sessionId);
+        session.isInteractive = false;
         try {
             await bob.sendMessage(chatId, {
-                text: '⏱️ *Sesi AI Ditutup Otomatis*\nSesi interaktif AI telah berakhir karena tidak ada aktivitas selama 10 menit.\nKetik `.ai --sesi` jika ingin memulai obrolan baru.'
+                text: '⏱️ *Sesi Obrolan AI Ditutup Otomatis*\nSesi santai telah berakhir karena tidak ada aktivitas selama 10 menit.\nKetik `.ai --sesi` kapan pun jika ingin ngobrol santai lagi, wir!'
             });
         } catch (err) {}
     }, SESSION_TIMEOUT);
 }
 
+/**
+ * Helper pengiriman balasan alami (1 pesan jika singkat, bertahap jika ada split, stiker & VN hook)
+ */
+async function sendNaturalAiResponse(bob, m, userText, geminiRes, pushname) {
+    const bubbles = (geminiRes.bubbles && geminiRes.bubbles.length > 0)
+        ? geminiRes.bubbles
+        : [geminiRes.fullText];
+    const chatId = m.chat;
+
+    // 1. Kirim pesan teks
+    if (bubbles.length === 1) {
+        // Balasan tunggal (default untuk jawaban singkat/normal agar tidak boom chat)
+        await m.reply(bubbles[0]);
+    } else {
+        // Balasan bertahap hanya jika ada pembagian topik yang jelas
+        for (let i = 0; i < bubbles.length; i++) {
+            const bubble = bubbles[i];
+            if (!bubble) continue;
+
+            if (i > 0) {
+                // Tampilkan typing indicator sebelum balon pesan berikutnya
+                try {
+                    if (bob?.sendPresenceUpdate) {
+                        await bob.sendPresenceUpdate('composing', chatId);
+                    }
+                } catch (_) {}
+
+                const typingDelay = Math.min(1200, Math.max(400, bubble.length * 15));
+                await new Promise(res => setTimeout(res, typingDelay));
+            }
+
+            if (i === 0) {
+                await m.reply(bubble);
+            } else {
+                await bob.sendMessage(chatId, { text: bubble });
+            }
+        }
+    }
+
+    // 2. Reaksi stiker ekspresi (eksekusi di background agar tidak menahan proses pesan utama)
+    (async () => {
+        try {
+            let stickerSent = false;
+            if (geminiRes.expression) {
+                stickerSent = await exprManager.sendExpressionByName(bob, m, geminiRes.expression);
+            }
+
+            if (!stickerSent) {
+                await exprManager.maybeSendExpressionSticker(bob, m, userText, geminiRes.fullText, 0.35);
+            }
+        } catch (_) {}
+    })().catch(() => {});
+
+    // 3. Hook event Voice Note (VN) - Siap pakai saat API dari user disusulkan (non-blocking)
+    if (geminiRes.vnEvent && geminiAi.isVoiceNoteEnabled(geminiRes.vnEvent)) {
+        (async () => {
+            try {
+                const vnBuffer = await geminiAi.generateVoiceNoteBuffer(geminiRes.fullText, geminiRes.vnEvent);
+                if (vnBuffer) {
+                    await new Promise(res => setTimeout(res, 800));
+                    await bob.sendMessage(chatId, { audio: vnBuffer, ptt: true, mimetype: 'audio/ogg; codecs=opus' });
+                }
+            } catch (vnErr) {
+                console.error('[search_ai] Gagal mengirim Voice Note event:', vnErr);
+            }
+        })().catch(() => {});
+    }
+}
+
 module.exports = {
     CmD: ['ai'],
-    aliases: ['ai', 'deepai'],
+    aliases: ['ai', 'gemini', 'chat'],
     categori: 'search',
+    desc: 'AI Dialog Santai & Cerdas Super Cepat via SDK Resmi @google/genai Interactions',
 
     /**
-     * Hook before: Intercept obrolan saat sesi interaktif aktif
+     * Hook before: Menangani obrolan saat mode sesi interaktif (.ai --sesi) sedang aktif
+     * CATATAN: AI UMUM ini murni obrolan biasa dan TIDAK BOLEH mengakses fitur antigravity-cli.
      */
-    before: async (m, { bob, body, budy, isCmd, prefix, isCreator, isOwner }) => {
+    before: async (m, { bob, body, budy, isCmd, prefix, pushname }) => {
         if (isCmd) return false;
         if (!m || m.isBaileys || m.fromMe) return false;
 
         const text = (budy || body || '').trim();
         if (!text) return false;
 
-        // Abaikan perintah /btw atau .btw agar tidak diproses oleh AI biasa
-        if (/^(\/|\.)?btw(\s|$)/i.test(text)) return false;
+        // Abaikan perintah /btw, .btw, .agy, .antigravity agar ditangani oleh owner_antigravity
+        if (/^(\/|\.)?(btw|agy|antigravity)(\s|$)/i.test(text)) return false;
 
         // Abaikan respon konfirmasi Y/N jika sedang ada persetujuan aktif di Antigravity
         if (/^(y|ya|yes|izinkan|setuju|ok|n|no|tidak|tolak|batal)$/i.test(text)) {
@@ -92,259 +158,150 @@ module.exports = {
         const session = aiSessions.get(sessionId) || aiSessions.get(m.chat);
         if (!session || !session.isInteractive) return false;
 
-        // Reset timer sesi
+        // Reset timer sesi agar tidak kedaluwarsa selama aktif ngobrol
         refreshSessionTimer(bob, m.chat, sessionId);
-
-        const ownerAuth = isCreator || isOwner;
-
-        // 1. Cek Koreksi Otomatis dari Owner ("itu agy", "kenapa ke ai biasa", dll.)
-        if (ownerAuth && aiRouter.learningManager && aiRouter.learningManager.isCorrection(text)) {
-            const learnRes = aiRouter.learningManager.learnFromCorrection(m.chat, text, session.history);
-            if (learnRes.learned) {
-                await m.reply(
-                    `🧠 *Pola Baru Berhasil Dipelajari!*\n\n` +
-                    `• *Instruksi Dipelajari:* _"${learnRes.learnedPhrase}"_\n` +
-                    `• *Tindakan:* Dicatat ke memori agar selalu dialihkan ke Antigravity CLI (\`agy\`).\n\n` +
-                    `_Mengalihkan tugas sebelumnya ke Antigravity CLI sekarang..._`
-                );
-                const agyPlugin = require('./owner_antigravity.js');
-                if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
-                    return agyPlugin.executeTask(bob, m, learnRes.previousPrompt, { isCreator: true, prefix, session });
-                }
-            }
-        }
-
-        // 2. Jika user adalah owner dan permintaannya butuh Antigravity (coding/vps/search web/git/github)
-        if (ownerAuth && aiRouter.needsAntigravity(text, session.history)) {
-            try {
-                const agyPlugin = require('./owner_antigravity.js');
-                if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
-                    agyPlugin.executeTask(bob, m, text, { isCreator: true, prefix, session });
-                    return true;
-                }
-            } catch (e) {
-                console.error('Error forwarding to Antigravity:', e);
-            }
-        }
 
         try {
             if (bob?.sendPresenceUpdate) {
                 await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
             }
 
-            const replyText = await getAiResponse(text, session.history);
-
-            // Simpan ke riwayat percakapan sesi
-            aiRouter.recordTurn(m.chat, text, replyText, 'casual');
-
-            await m.reply(replyText);
-
-            // Reaksi stiker ekspresi otomatis (peluang 35%)
-            exprManager.maybeSendExpressionSticker(bob, m, text, replyText, 0.35).catch(errExp => {
-                console.error('[search_ai] Error sticker reaction:', errExp);
+            // Dapatkan respon dari Google GenAI Interactions API (gemini-3.8-flash)
+            const geminiRes = await geminiAi.generateChatResponse({
+                prompt: text,
+                previousInteractionId: session.lastInteractionId,
+                pushname: pushname || m.pushName || 'Kawan'
             });
 
+            // Simpan Interaction ID agar konteks tersinkronisasi otomatis di sisi server Gemini
+            if (geminiRes.interactionId) {
+                session.lastInteractionId = geminiRes.interactionId;
+            }
+
+            // Kirim balasan
+            await sendNaturalAiResponse(bob, m, text, geminiRes, pushname);
             return true;
         } catch (error) {
-            console.error('Error handling AI session message:', error);
-            await m.reply('❌ Waduh wir lagi agak ngelag nih, coba kirim lagi pesan lu.');
+            console.error('[search_ai] Error handling AI session message:', error);
+            await m.reply('❌ Waduh wir, koneksi Gemini lagi agak tersendat. Coba kirim lagi pesan lu.');
             return true;
         }
     },
 
     /**
-     * Exec: Dijalankan saat user mengetik .ai <pesan>
+     * Exec: Dijalankan saat user mengetik perintah .ai <pesan>
      */
-    exec: async (m, { bob, args, text, prefix, command, isCreator, isOwner }) => {
+    exec: async (m, { bob, args, text, prefix, command, pushname }) => {
         const sessionId = m.isGroup ? `${m.chat}_${m.sender}` : m.chat;
         const argText = (text || '').trim();
-        const ownerAuth = isCreator || isOwner;
 
-        // Sub-opsi: Menghentikan / menutup sesi
+        // ── 1. SUB-OPSI: HENTIKAN / TUTUP SESI ──
         if (argText === '--stop' || argText === '--keluar' || argText === '--end' || argText === '--close') {
             const session = aiSessions.get(sessionId) || aiSessions.get(m.chat);
             if (session && session.isInteractive) {
                 if (session.timer) clearTimeout(session.timer);
-                aiRouter.stopInteractive(sessionId);
-                aiRouter.stopInteractive(m.chat);
-                return m.reply('✅ *Sesi AI Telah Dinonaktifkan*\nKetik prefix seperti biasa untuk menjalankan perintah.');
+                session.isInteractive = false;
+                return m.reply('✅ *Sesi Chat AI Dinonaktifkan*\nKetik prefix seperti biasa untuk menjalankan perintah bot lainnya.');
             } else {
-                return m.reply('ℹ️ Kamu saat ini tidak sedang berada dalam sesi chat AI.');
+                return m.reply('ℹ️ Kamu saat ini tidak sedang berada dalam sesi chat interaktif AI.');
             }
         }
 
-        // Sub-opsi: Reset riwayat sesi
-        if (argText === '--reset') {
-            aiRouter.resetSession(sessionId);
-            aiRouter.resetSession(m.chat);
-            return m.reply('✅ *Konteks & Riwayat Sesi AI Direset.*');
+        // ── 2. SUB-OPSI: RESET RIWAYAT SESI ──
+        if (argText === '--reset' || argText === '--clear') {
+            const session = aiSessions.get(sessionId) || aiSessions.get(m.chat);
+            if (session) {
+                session.lastInteractionId = null;
+                session.history = [];
+            }
+            return m.reply('✅ *Riwayat & Konteks Obrolan AI Direset ke Awal.*');
         }
 
-        // Sub-opsi: Melatih pembelajaran AI (Learn pattern)
-        if (argText.startsWith('--learn') || argText.startsWith('--pelajari')) {
-            if (!ownerAuth) return m.reply('[Akses Ditolak] Fitur melatih memori AI hanya untuk Owner.');
-            const targetPattern = argText.replace(/^--(learn|pelajari)\s*/i, '').trim();
-            if (!targetPattern) return m.reply(`Format salah! Contoh:\n*${prefix + command} --learn cek pembaruan repo github*`);
-            aiRouter.learningManager.learnPhrase(targetPattern, 'Manual via command');
-            return m.reply(`🧠 *Pola Berhasil Dipelajari*\nFrasa _"${targetPattern}"_ telah dicatat ke memori pembelajaran dan akan selalu diarahkan ke Antigravity CLI (\`agy\`).`);
-        }
-
-        // Sub-opsi: Melihat memori pola pembelajaran
-        if (argText === '--patterns' || argText === '--pola') {
-            if (!ownerAuth) return m.reply('[Akses Ditolak] Fitur melihat memori pembelajaran AI hanya untuk Owner.');
-            const stats = aiRouter.learningManager.getStats();
-            let msg = `🧠 *Memori Pola Pembelajaran AI*\n` +
-                      `----------------------------------------\n` +
-                      `• Total Pola Regex: *${stats.totalPatterns}*\n` +
-                      `• Total Frasa Belajar: *${stats.totalPhrases}*\n` +
-                      `• Total Koreksi Dicatat: *${stats.totalCorrections}*\n\n` +
-                      `*Daftar Frasa Pembelajaran Terkini:*\n` +
-                      stats.phrases.slice(-12).map((p, idx) => `${idx + 1}. _${p}_`).join('\n') +
-                      `\n\n_Untuk menambah pola baru: *${prefix + command} --learn <frasa>*\n` +
-                      `_Untuk menghapus pola: *${prefix + command} --unlearn <kata_kunci>_*`;
-            return m.reply(msg);
-        }
-
-        // Sub-opsi: Hapus pola pembelajaran (Unlearn)
-        if (argText.startsWith('--unlearn') || argText.startsWith('--hapuspola')) {
-            if (!ownerAuth) return m.reply('[Akses Ditolak] Fitur menghapus memori pembelajaran AI hanya untuk Owner.');
-            const targetKey = argText.replace(/^--(unlearn|hapuspola)\s*/i, '').trim();
-            if (!targetKey) return m.reply(`Contoh:\n*${prefix + command} --unlearn github*`);
-            const ok = aiRouter.learningManager.unlearn(targetKey);
-            return m.reply(ok ? `✅ Pola yang cocok dengan _"${targetKey}"_ berhasil dihapus dari memori pembelajaran.` : `❌ Pola tidak ditemukan.`);
-        }
-
-        // Sub-opsi: Memulai sesi interaktif
+        // ── 3. SUB-OPSI: MEMULAI SESI INTERAKTIF (.ai --sesi) ──
         if (argText.startsWith('--sesi')) {
             const extraQuery = argText.replace(/^--sesi\s*/i, '').trim();
-            const session = aiRouter.getOrCreateSession(sessionId);
+            const session = getOrCreateSession(sessionId);
             session.isInteractive = true;
             refreshSessionTimer(bob, m.chat, sessionId);
 
             if (extraQuery) {
-                // Jika koreksi
-                if (ownerAuth && aiRouter.learningManager && aiRouter.learningManager.isCorrection(extraQuery)) {
-                    const learnRes = aiRouter.learningManager.learnFromCorrection(m.chat, extraQuery, session.history);
-                    if (learnRes.learned) {
-                        await m.reply(
-                            `🧠 *Pola Baru Berhasil Dipelajari!*\n\n` +
-                            `• *Instruksi Dipelajari:* _"${learnRes.learnedPhrase}"_\n` +
-                            `• *Tindakan:* Dicatat ke memori pembelajaran agar selalu diarahkan ke Antigravity CLI (\`agy\`).\n\n` +
-                            `_Mengalihkan tugas sebelumnya ke Antigravity CLI sekarang..._`
-                        );
-                        const agyPlugin = require('./owner_antigravity.js');
-                        if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
-                            return agyPlugin.executeTask(bob, m, learnRes.previousPrompt, { isCreator: true, prefix, session });
-                        }
-                    }
-                }
-
-                // Jika owner meminta tugas coding/terminal/git via .ai
-                if (ownerAuth && aiRouter.needsAntigravity(extraQuery, session.history)) {
-                    const agyPlugin = require('./owner_antigravity.js');
-                    if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
-                        return agyPlugin.executeTask(bob, m, extraQuery, { isCreator: true, prefix, session });
-                    }
-                }
-
                 try {
                     if (bob?.sendPresenceUpdate) {
                         await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
                     }
-                    const replyText = await getAiResponse(extraQuery, session.history);
-                    aiRouter.recordTurn(m.chat, extraQuery, replyText, 'casual');
-                    await m.reply(replyText);
 
-                    // Reaksi stiker ekspresi otomatis (peluang 35%)
-                    exprManager.maybeSendExpressionSticker(bob, m, extraQuery, replyText, 0.35).catch(errExp => {
-                        console.error('[search_ai] Error sticker reaction:', errExp);
+                    const geminiRes = await geminiAi.generateChatResponse({
+                        prompt: extraQuery,
+                        previousInteractionId: session.lastInteractionId,
+                        pushname: pushname || m.pushName || 'Kawan'
                     });
+
+                    if (geminiRes.interactionId) {
+                        session.lastInteractionId = geminiRes.interactionId;
+                    }
+
+                    await sendNaturalAiResponse(bob, m, extraQuery, geminiRes, pushname);
                     return;
                 } catch (err) {
-                    return m.reply('❌ Gagal memproses pesan: ' + err.message);
+                    console.error('[search_ai] Error processing prompt with --sesi:', err);
+                    return m.reply('❌ Terjadi kesalahan saat memproses pesan: ' + err.message);
                 }
-            } else {
                 return m.reply(
-                    `🤖 *Sesi Interaktif AI & Antigravity Dimulai!*\n\n` +
-                    `Kamu sekarang berada dalam mode percakapan langsung *(tanpa prefix)*:\n` +
-                    `• Obrolan santai otomatis menggunakan model alternatif (hemat token).\n` +
-                    `• Coding, git/github, search web otomatis ditangani oleh Antigravity CLI.\n` +
-                    `• Bot otomatis belajar jika terjadi kekeliruan pemilihan model.\n` +
+                    `🤖 *Sesi Percakapan AI Dimulai (Google GenAI Fast)*\n\n` +
+                    `Kamu sekarang berada dalam mode santai *(tanpa prefix)*:\n` +
+                    `• Didukung langsung oleh SDK Resmi \`@google/genai\` *(Fast Multi-Model Pool)*.\n` +
+                    `• Respon super kilat (~2-3 detik), hemat kuota, dan hemat bubble.\n` +
+                    `• Dilengkapi ekspresi stiker interaktif.\n` +
                     `• Ketik *${prefix + command} --stop* untuk mengakhiri sesi.\n` +
-                    `• Ketik *${prefix + command} --reset* untuk mereset riwayat sesi.\n` +
+                    `• Ketik *${prefix + command} --reset* untuk memulai obrolan dari nol.\n` +
                     `• Sesi akan otomatis berakhir jika tidak aktif selama *10 menit*.`
                 );
             }
         }
 
-        // Tanya satu kali saja (.ai <pertanyaan>)
+        // ── 4. TANYA LANGSUNG SATU KALI (.ai <pertanyaan>) ──
         if (argText.length > 0) {
-            const session = aiRouter.getOrCreateSession(sessionId);
-
-            // Cek Koreksi Otomatis dari Owner
-            if (ownerAuth && aiRouter.learningManager && aiRouter.learningManager.isCorrection(argText)) {
-                const learnRes = aiRouter.learningManager.learnFromCorrection(m.chat, argText, session.history);
-                if (learnRes.learned) {
-                    await m.reply(
-                        `🧠 *Pola Baru Berhasil Dipelajari!*\n\n` +
-                        `• *Instruksi Dipelajari:* _"${learnRes.learnedPhrase}"_\n` +
-                        `• *Tindakan:* Dicatat ke memori pembelajaran agar selalu diarahkan ke Antigravity CLI (\`agy\`).\n\n` +
-                        `_Mengalihkan tugas sebelumnya ke Antigravity CLI sekarang..._`
-                    );
-                    const agyPlugin = require('./owner_antigravity.js');
-                    if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
-                        return agyPlugin.executeTask(bob, m, learnRes.previousPrompt, { isCreator: true, prefix, session });
-                    }
-                }
-            }
-
-            // Jika owner meminta coding / search web / git / vps melalui .ai
-            if (ownerAuth && aiRouter.needsAntigravity(argText, session.history)) {
-                const agyPlugin = require('./owner_antigravity.js');
-                if (agyPlugin && typeof agyPlugin.executeTask === 'function') {
-                    return agyPlugin.executeTask(bob, m, argText, { isCreator: true, prefix, session });
-                }
-            }
+            const session = getOrCreateSession(sessionId);
 
             try {
                 if (bob?.sendPresenceUpdate) {
                     await bob.sendPresenceUpdate('composing', m.chat).catch(() => {});
                 }
-                const replyText = await getAiResponse(argText, session.history);
-                aiRouter.recordTurn(m.chat, argText, replyText, 'casual');
-                await m.reply(replyText);
 
-                // Reaksi stiker ekspresi otomatis (peluang 35%)
-                exprManager.maybeSendExpressionSticker(bob, m, argText, replyText, 0.35).catch(errExp => {
-                    console.error('[search_ai] Error sticker reaction:', errExp);
+                const geminiRes = await geminiAi.generateChatResponse({
+                    prompt: argText,
+                    previousInteractionId: session.lastInteractionId,
+                    pushname: pushname || m.pushName || 'Kawan'
                 });
+
+                if (geminiRes.interactionId) {
+                    session.lastInteractionId = geminiRes.interactionId;
+                }
+
+                await sendNaturalAiResponse(bob, m, argText, geminiRes, pushname);
                 return;
             } catch (err) {
-                console.error('Error on single AI query:', err);
-                return m.reply('❌ Terjadi kesalahan saat memproses permintaan: ' + err.message);
+                console.error('[search_ai] Error on direct AI query:', err);
+                return m.reply('❌ Gagal memproses permintaan AI: ' + err.message);
             }
         }
 
-        // Panduan penggunaan
-        const sess = aiSessions.get(sessionId) || aiSessions.get(m.chat);
+        // ── 5. PANDUAN PENGGUNAAN ──
+        const currentSession = aiSessions.get(sessionId) || aiSessions.get(m.chat);
         return m.reply(
-            `🤖 *AI & Antigravity Smart Assistant*\n\n` +
-            `1️⃣ *Tanya Langsung:*\n` +
-            `• *${prefix + command} <pertanyaan / instruksi>*\n` +
-            `_Contoh: ${prefix + command} halo wir lagi ngapain_\n` +
-            `_Contoh: ${prefix + command} buatkan plugin kalkulator_\n` +
-            `_Contoh: ${prefix + command} cek pembaruan yang sudah terjadi untuk di upload ke github_\n\n` +
-            `2️⃣ *Mode Sesi Percakapan:*\n` +
-            `• *${prefix + command} --sesi*\n` +
-            `_Mengobrol langsung tanpa prefix dengan riwayat obrolan tersambung._\n\n` +
-            `3️⃣ *Sistem Pembelajaran AI:*\n` +
-            `• *${prefix + command} --learn <frasa>*\n` +
-            `• *${prefix + command} --patterns*\n` +
-            `• *${prefix + command} --unlearn <kata_kunci>*\n\n` +
-            `4️⃣ *Kontrol Sesi:*\n` +
-            `• *${prefix + command} --stop* (Keluar dari sesi interaktif)\n` +
-            `• *${prefix + command} --reset* (Mulai sesi baru dari nol)\n\n` +
-            `*Status Sesi:* ${sess?.isInteractive ? 'Aktif' : 'Nonaktif'}`
+            `🤖 *Google GenAI Assistant (Ultra-Fast Response)*\n\n` +
+            `*Format Penggunaan:*\n` +
+            `1️⃣ *Tanya Langsung:* \n` +
+            `   • *${prefix + command} <pertanyaan / obrolan>*\n` +
+            `   _Contoh: ${prefix + command} halo wir lagi sibuk apa nih_\n` +
+            `   _Contoh: ${prefix + command} ceritain lelucon bapak-bapak yang kocak_\n\n` +
+            `2️⃣ *Mode Sesi Santai (Tanpa Prefix):*\n` +
+            `   • *${prefix + command} --sesi*\n` +
+            `   _Bisa chat langsung terus-menerus tanpa perlu mengetik prefix lagi._\n\n` +
+            `3️⃣ *Kontrol Sesi:*\n` +
+            `   • *${prefix + command} --stop* (Keluar dari sesi chat)\n` +
+            `   • *${prefix + command} --reset* (Hapus riwayat obrolan)\n\n` +
+            `*Status Sesi Kamu:* ${currentSession?.isInteractive ? '🟢 Aktif' : '⚪ Nonaktif'}`
         );
     }
 };

@@ -242,7 +242,7 @@ async function createStickerWebp(rawBuffer, isWebp, packname, author) {
 }
 
 module.exports = {
-    CmD: ['stickersearch', 'stickerly'],
+    CmD: ['stickersearch'],
     aliases: ['stickersearch', 'stickerly', 'stikersearch', 'caristiker', 'spack', 'ssearch'],
     categori: 'search',
     desc: 'Cari paket stiker di Sticker.ly dan kirim stiker langsung ke chat',

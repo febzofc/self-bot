@@ -5,7 +5,7 @@ const util = require('util');
 const execPromise = util.promisify(exec);
 
 module.exports = {
-    CmD: ['toimage', 'toimg'],
+    CmD: ['toimage'],
     aliases: ['toimage', 'toimg', 'topng', 'tofoto'],
     categori: 'maker',
     desc: 'Konversi stiker WhatsApp ke gambar / foto',

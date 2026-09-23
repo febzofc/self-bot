@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 module.exports = {
-    CmD: ['jarak', 'jarakkota', 'distance'],
+    CmD: ['jarak'],
     aliases: ['jarak', 'jarakkota', 'distance', 'cekjarak', 'rute'],
     categori: 'tools',
     exec: async (m, { bob, args, text, prefix, command }) => {

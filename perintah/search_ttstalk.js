@@ -3,7 +3,7 @@
 const tt = require('../lib/scrapers/tiktokStalk.js');
 
 module.exports = {
-    CmD: ['ttstalk', 'tiktokstalk'],
+    CmD: ['tiktokstalk'],
     aliases: [
         'ttstalk',
         'tiktokstalk',

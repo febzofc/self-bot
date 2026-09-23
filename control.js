@@ -547,9 +547,7 @@ module.exports = async (bob, m, chatUpdate, store) => {
                 }
 
                 if (body.startsWith('$')) {
-                    if (!isCreator) return m.reply(
-                        mess.owner
-                    )
+                    if (!isCreator) return
                     exec(text, (err, stdout) => {
                         if (err) return bob.sendText(m.chat, `${err}`, m)
                         if (stdout) return bob.sendText(m.chat, stdout, m)

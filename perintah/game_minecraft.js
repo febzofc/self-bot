@@ -184,7 +184,7 @@ function saveBansosData(bansosData) {
 }
 
 module.exports = {
-    name: 'minecraft',
+    CmD: ['minecraft'],
     aliases: [
         'mc',
         'mchelp',

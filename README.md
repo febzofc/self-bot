@@ -1,10 +1,54 @@
-# Cimo Self-Bot (v2.1.0)
+# Cimo Self-Bot (v2.2.0)
 
-Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk penggunaan pribadi (self-bot) dan grup chat. Bot ini menggunakan arsitektur modular berbasis plugin yang mempermudah penambahan fitur baru, serta dilengkapi dengan integrasi AI Developer Google Antigravity CLI (AGY), dashboard web monitoring, Web Player Streaming Anime, Web TV, Integrasi Server Minecraft ServerTap.io, Social Media Stalkers (Instagram & TikTok), dan Smartphone Specification Engine.
+Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk penggunaan pribadi (self-bot) dan grup chat. Bot ini menggunakan arsitektur modular berbasis plugin yang mempermudah penambahan fitur baru, serta dilengkapi dengan integrasi AI Developer Google Antigravity CLI (AGY), engine AI chat santai resmi `@google/genai`, pencarian tiket pesawat real-time, visual search komparasi harga marketplace, upload gambar ke hosting Lightshot, dashboard web monitoring, Web Player Streaming Anime, Web TV, Integrasi Server Minecraft ServerTap.io, Social Media Stalkers (Instagram & TikTok), dan Smartphone Specification Engine.
 
 ---
 
-## Fitur Unggulan Versi Terbaru (v2.1.0)
+## 🚀 Catatan Rilis & Log Pembaruan (Changelog)
+
+> 💡 **Petunjuk:** Klik pada masing-masing baris versi di bawah ini untuk melihat detail perubahan serta penambahan fitur barunya.
+
+<details open>
+<summary><b>📦 Versi 2.2.0 (Terbaru) - Flight Ticket, Marketplace Visual Search, Lightshot CDN & Official Google GenAI SDK</b></summary>
+<br>
+
+### 🛫 1. Cek Tiket Pesawat Domestik & Internasional (`.tiketpesawat` / `.pesawat` / `.flight`)
+- **Pencarian Real-Time via Trip.com:** Menampilkan jadwal penerbangan lengkap, nama maskapai, nomor penerbangan, waktu berangkat/tiba, durasi perjalanan, serta harga tiket termurah dan direct link pemesanan.
+- **Interactive List Message (Baileys single_select):** Mendukung pemilihan rute bandara asal dan tujuan secara interaktif lewat tombol menu interaktif WhatsApp.
+- **Dukungan Bandara Lengkap & Tanggal Fleksibel:** Otomatis memilih tanggal keberangkatan H+1 secara default jika tidak ditentukan, atau tentukan tanggal spesifik (`YYYY-MM-DD` / `DD-MM-YYYY`).
+
+### 🛍️ 2. Cek Harga Barang & Visual Search Marketplace (`.cekharga` / `.harga` / `.caribarang`)
+- **Visual Product Recognition:** Cukup kirim atau balas (reply) foto barang/produk, bot otomatis memindai objek produk tersebut.
+- **Komparasi Multi-Marketplace:** Membandingkan harga dan ketersediaan produk serupa di Shopee, Tokopedia, dan Lazada secara real-time.
+- **Pratinjau & Estimasi Harga:** Menampilkan estimasi kisaran harga termurah hingga tertinggi, rating toko, dan tautan langsung ke etalase marketplace.
+
+### 📸 3. Lightshot Image Uploader (`.tourlsc` / `.prntsc` / `.tourl3`)
+- **Upload Media ke Prnt.sc:** Mengunggah foto, gambar, maupun stiker WhatsApp langsung ke server Lightshot (`https://prnt.sc`).
+- **Direct Raw Image Link:** Otomatis menghasilkan tautan publik direct raw image (CDN) yang siap dibagikan atau digunakan untuk integrasi visual scraper.
+
+### 🗑️ 4. Smart Message Deletion (`.del` / `.delete` / `.d` / `.hapus`)
+- **Hapus Pesan Bot (Self-Bot):** Balas (reply) pesan yang dikirim oleh bot di obrolan pribadi (DM) maupun grup untuk menghapusnya seketika.
+- **Admin Delete (Grup):** Jika bot dan pemanggil perintah memiliki akses admin grup, perintah ini dapat menghapus pesan anggota lain (revoke message).
+- **Multi-Identifier Detection:** Deteksi akurat berbasis Baileys ID, fromMe, nomor bot, dan WhatsApp LID.
+
+### ⚡ 5. Engine Baru Google GenAI Official SDK (`.ai`)
+- **Integrasi SDK Resmi `@google/genai`:** Didukung model pool berkecepatan tinggi (`gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3-flash-preview`).
+- **Respon Super Kilat:** Kecepatan respon ~2-3 detik dengan thinking level minimal, hemat bubble chat, dan natural splitting.
+- **Ekspresi Emosi Stiker Otomatis:** AI mampu mendeteksi konteks emosi dan mentrigger stiker ekspresi (`[EXPR: ...]`).
+
+### 🎭 6. Ekosistem Stiker Ekspresi Kontekstual & Reaksi Emosi
+- **Koleksi Stiker Baru:** Penambahan koleksi stiker ekspresi lucu, sedih, sus, bingung, gaktau, ketawa, pujian, dan mabar di `src/expressions/`.
+- **Helper `sendExpressionByName`:** Pengiriman stiker langsung sesuai deteksi emosi tanpa jeda berlebih.
+
+### 🛡️ 7. Standarisasi Plugin & Proteksi Keamanan Gatekeeper
+- **Standarisasi Plugin:** Pembersihan dan unifikasi properti `CmD` dan `aliases` di seluruh modul plugin `./perintah/`.
+- **Penyempurnaan Gatekeeper Hook:** Proteksi otomatis terhadap perintah fatal/destruktif dan pencegahan restart PM2 sepihak.
+
+</details>
+
+<details>
+<summary><b>📦 Versi 2.1.0 - Pinterest Search, SSYouTube Downloader, Jarak Antar Kota & Safe PM2 Policy</b></summary>
+<br>
 
 ### 1. Pinterest Search Engine (`.pinterest` / `.pin`)
 - **Pencarian Gambar Pinterest Realtime:** Menggunakan API siputzx untuk mengambil gambar resolusi tinggi dari Pinterest.
@@ -24,9 +68,11 @@ Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk p
 - Proteksi restart PM2 otomatis: penambahan/pengeditan plugin di `./perintah/` menggunakan hot-reload tanpa restart proses bot.
 - Penyempurnaan filter routing AI dan penanganan interupsi `/btw` saat task Antigravity berjalan.
 
----
+</details>
 
-## Fitur Unggulan Versi v2.0.0 (Antigravity Integration)
+<details>
+<summary><b>📦 Versi 2.0.0 - Google Antigravity (AGY) CLI Integration</b></summary>
+<br>
 
 ### 1. Google Antigravity (AGY) CLI Full Integration & Controller (`.agy` / `.antigravity` / `.btw`)
 - **Jembatan WhatsApp ke AI Developer Agent Antigravity:** Menghubungkan bot WhatsApp langsung ke runtime Antigravity CLI di VPS untuk mengeksekusi instruksi coding, inspeksi file, debugging, testing, pembuatan dokumen, dan manajemen task.
@@ -51,9 +97,11 @@ Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk p
   - Otomatis mengonfigurasi direktori `.agents/` dan hook saat bot pertama kali dijalankan di VPS baru mana pun.
   - Otomatis mendeteksi jika Antigravity CLI belum terinstall di VPS dan memberikan instruksi instalasi lengkap.
 
----
+</details>
 
-## Fitur Unggulan Versi Sebelumnya (v1.4.0)
+<details>
+<summary><b>📦 Versi 1.4.0 - Specs Engine, Anime Hub, Minecraft & Game Interaktif</b></summary>
+<br>
 
 ### 1. 📱 GSMArena & Smartphone Specifications Engine (`.spec` / `.gsmarena` / `.hp`)
 - **Bypass Proteksi Cloudflare Turnstile:** Mendukung integrasi Cookie (`sLoginCookie` / `cf_clearance`) dan custom User-Agent agar tetap dapat mengakses GSMArena dari IP server.
@@ -66,56 +114,31 @@ Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk p
 - Format tampilan lirik bersih, mudah dibaca, dan dilengkapi metadata artis serta judul lagu.
 
 ### 3. 🔍 Social Media Stalker Lengkap (Instagram & TikTok)
-- **Instagram Stalker (`.igstalk` / `.stalkig`):**
-  - Stalking profil Instagram lengkap tanpa browser/Chromium (Pure API & HTTP Scraper).
-  - Menampilkan foto profil resolusi HD, nama lengkap, user ID, status privasi (Publik/Privat), lencana verifikasi (Centang Biru), bio lengkap, link bio, dan statistik akun (followers, following, posts, reels).
-  - Menampilkan cuplikan 3 postingan terbaru (tipe media foto/video, likes, komentar, caption, dan link langsung).
-- **TikTok Stalker (`.ttstalk` / `.tiktokstalk`):**
-  - Menggunakan API Faa (`api-faa.my.id`) untuk mengambil data lengkap akun TikTok.
-  - Menampilkan avatar foto profil, nama, user ID, region negara, status akun, tanggal pembuatan akun, bio, total followers, following, likes, video, dan teman.
+- **Instagram Stalker (`.igstalk` / `.stalkig`):** Stalking profil Instagram lengkap tanpa browser/Chromium (Pure API & HTTP Scraper).
+- **TikTok Stalker (`.ttstalk` / `.tiktokstalk`):** Data profil TikTok lengkap via API Faa.
 
-### 4. 🎮 Integrasi Server Minecraft ServerTap.io (Port 8122) & Sistem Bansos Persistent
-- **Pembaruan Koneksi & Anti-Socket Hang Up:** Optimalisasi koneksi ke port aktif 8122 dengan auto-retry interceptor dan non-keepalive socket.
-- **Status & Monitoring Server (`.mcstatus` / `.mcplayers`):** Cek TPS, memori RAM, jumlah pemain online, serta detail individual (HP, koordinat, level, & mode game).
-- **Claim Bansos Starter Kit Persistent (`.mcclaimbansos` / `.mcbansos`):**
-  - Pemain online di Minecraft dapat mengklaim Paket Bansos Starter Kit (Full Iron Armor, Iron Tools, 64 Roti, & Kasur).
-  - **Penyimpanan Terintegrasi LowDB (`global.db.data.minecraft_bansos`):** Riwayat klaim tersimpan secara permanen di database JSON sehingga tidak hilang atau ter-reset saat bot di-restart.
-  - **Cooldown 24 Jam:** Proteksi jeda waktu klaim 24 jam dengan penghitung waktu mundur (*countdown timer*) yang akurat.
-- **Manajemen Koordinat & Sethome (`.mcsave`, `.mccoords`, `.sethome`):**
-  - Menyimpan koordinat lokasi penting & titik home player langsung ke database persistent `global.db.data`.
+### 4. 🎮 Integrasi Server Minecraft ServerTap.io & Sistem Bansos Persistent
+- Monitoring Server (`.mcstatus` / `.mcplayers`), klaim Bansos Kit (`.mcclaimbansos`) Cooldown 24 jam dengan database LowDB persistent, dan manajemen koordinat (`.mcsave`, `.mccoords`).
 
 ### 5. 📊 Inspeksi Grup WhatsApp (`.inspect` / `.inspectgroup`)
-- Inspeksi detail grup WhatsApp menggunakan link undangan (`chat.whatsapp.com/code`), JID grup, atau langsung di dalam grup.
-- Menampilkan: Pembuat grup, tanggal pembuatan, ephemeral duration, daftar admin, approval mode, presensi online realtime anggota, serta foto profil grup.
+- Analisis link grup, JID, daftar admin, dan detail member.
 
 ### 6. ⛩️ 🌸 Otakudesu Anime Hub & Web Player Streaming TV
-- **Sesi Interaktif (3 Steps):**
-  - `Step 1`: Pencarian anime (`.otakusearch <judul>`).
-  - `Step 2`: Detail anime, sinopsis, dan pilihan episode / BATCH.
-  - `Step 3`: Aksi episode (Download 360p-1080p / Streaming Player).
-- **Web Player Streaming TV (`public/anime_stream.html`):** Pemutar video anime web responsive.
+- Pencarian anime, detail episode, dan web player video streaming (`public/anime_stream.html`).
 
 ### 7. 🎮 Game Interactive Player vs Bot
-- **Tic-Tac-Toe (`.ttt` / `.tictactoe` / `.ttc`):** 3 tingkat kesulitan (`Easy`, `Normal`, `Hard` Minimax) dengan integrasi statistik permanent `global.db.data`.
-- **Gunting Batu Kertas / Suit Bot (`.suit` / `.gbk`):** Game RPS interaktif.
+- Tic-Tac-Toe (`.ttt`) & Gunting Batu Kertas (`.suit`).
 
 ### 8. 🎨 Maker & Media Downloader Plugins
-- **Instagram Downloader & Stalker (`.ig` / `.igdl` / `.igstalk`)**
-- **TikTok Downloader & Stalker (`.tt` / `.tiktok` / `.ttstalk`)**
-- **Facebook Downloader (`.fb` / `.fbdl`)**
-- **YouTube Downloader (`.yt` / `.ytdl`)**
-- **Videy Video Uploader (`.videy`)**
-- **iPhone Quote Chat Maker (`.iqc` / `.iqcv2`)**
-- **Sticker Meme Maker (`.smeme`)**
-- **Brat Generator (`.brat` / `.brat --img`)**
+- Instagram, TikTok, Facebook, YouTube, Videy, Quote chat, Sticker meme, Brat generator.
 
 ### 9. ⚽ Jadwal Sepak Bola & Formasi Starting XI (`.jadwalbola` / `.bola`)
-- **Jadwal & Hasil Pertandingan Realtime:** Menampilkan daftar jadwal laga bola terupdate lengkap dengan liga/kompetisi, status kick-off, jam/waktu WIB, skor terkini, dan stadion.
-- **Formasi & Susunan Pemain (Starting XI):** Dukungan sesi interaktif untuk memilih nomor pertandingan guna melihat susunan pemain (Lineup) dari kedua tim serta statistik/kejadian laga.
-- **Pencarian Tim / Liga:** Cari jadwal tim favorit secara instan (contoh: `.jadwalbola roma`, `.jadwalbola bayern`, `.jadwalbola champions`).
+- Jadwal liga terupdate, livescore, dan susunan formasi starting XI.
 
 ### 10. 📈 System Performance Statistics (`.stats` / `.ping`)
-- Menampilkan pemakaian CPU, penggunaan RAM, sisa penyimpanan disk, uptime sistem, dan statistik pesan bot secara realtime.
+- Monitoring CPU, RAM, disk storage, dan uptime.
+
+</details>
 
 ---
 
@@ -123,6 +146,14 @@ Cimo Self-Bot adalah bot WhatsApp berbasis Node.js yang dirancang khusus untuk p
 
 | Perintah | Deskripsi |
 | --- | --- |
+| `.tiketpesawat <asal> <tujuan> [tgl]` | Cek jadwal & harga tiket pesawat domestik/internasional via Trip.com |
+| `.cekharga` (reply foto barang) | Visual search & komparasi harga barang di Shopee, Tokopedia, Lazada |
+| `.tourlsc` / `.prntsc` (reply foto) | Upload foto/stiker ke Lightshot (prnt.sc) & ambil link direct raw image |
+| `.del` / `.delete` / `.d` (reply) | Hapus pesan bot (DM/grup) atau pesan member (Admin delete) |
+| `.ai <pesan>` / `.ai --sesi` | AI Chat santai gaul bertenaga Google GenAI SDK resmi (Fast Response) |
+| `.pinterest <query> [jumlah]` | Cari dan download gambar resolusi tinggi dari Pinterest |
+| `.ssyt` / `.ssmp3` / `.ssmp4` [url] | Download video/audio YouTube via SSYouTube scraper |
+| `.jarak <kota1> - <kota2>` | Hitung jarak rute jalan darat & estimasi waktu tempuh antar kota |
 | `.agy <instruksi>` | Menjalankan instruksi AI Developer Google Antigravity CLI dengan sistem approval (Khusus Owner) |
 | `.agy --sesi` | Mengaktifkan sesi obrolan interaktif langsung tanpa prefix |
 | `/btw` atau `.btw` | Memeriksa live status & riwayat task Antigravity yang sedang berjalan, atau tanya progres |

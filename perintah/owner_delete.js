@@ -7,7 +7,7 @@
  */
 
 module.exports = {
-    CmD: ['delete', 'del'],
+    CmD: ['delete'],
     aliases: ['delete', 'del', 'd', 'hapus'],
     categori: 'owner',
     exec: async (m, { bob, prefix, command, isCreator, isOwner }) => {

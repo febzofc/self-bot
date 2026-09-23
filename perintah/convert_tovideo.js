@@ -3,7 +3,7 @@ const path = require('path');
 const { webp2mp4File } = require('../lib/scrapers/uploader.js');
 
 module.exports = {
-    CmD: ['tovideo', 'tomp4'],
+    CmD: ['tovideo'],
     aliases: ['tovideo', 'tomp4'],
     categori: 'maker',
     desc: 'Konversi stiker bergerak ke video MP4',

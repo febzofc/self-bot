@@ -38,7 +38,7 @@ async function uploadToUrl(buffer, ext = 'png') {
 }
 
 module.exports = {
-    CmD: ['cekgay', 'gaycek', 'gay'],
+    CmD: ['cekgay'],
     aliases: ['cekgay', 'gaycek', 'gay'],
     categori: 'maker',
     desc: 'Cek persentase gay seseorang dengan canvas',

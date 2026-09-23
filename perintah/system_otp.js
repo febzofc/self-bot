@@ -1,8 +1,8 @@
 const axios = require('axios');
 
 module.exports = {
-    CmD: ['sendotp', 'otpapi'],
-    aliases: ['kirimotp', 'setotpsecret'],
+    CmD: ['sendotp'],
+    aliases: ['sendotp', 'otpapi', 'kirimotp', 'setotpsecret'],
     categori: 'tools',
     exec: async (m, { bob, prefix, command, args, isOwner }) => {
         if (command === 'setotpsecret') {

@@ -148,7 +148,16 @@ function isFatalOrCritical(toolName, toolArgs) {
             };
         }
 
-        // Perintah non-fatal lainnya (curl, wget, node, npm, cat, git add/commit, pm2 restart self-bot, ls, mkdir, dll) OTOMATIS AMAN
+        // g. Restart atau penghentian PM2 bot (mematikan proses bot & memutus koneksi WhatsApp)
+        if (/\\bpm2\\s+(restart|reload|stop|delete|kill|resurrect)\\b/i.test(cmd) ||
+            /\\b(systemctl|service)\\s+.*(restart|stop)\\b/i.test(cmd)) {
+            return {
+                isFatal: true,
+                reason: 'Perintah manipulasi PM2/layanan sistem (pm2 restart/stop). Aksi ini akan mematikan proses bot dan memutuskan koneksi WhatsApp!'
+            };
+        }
+
+        // Perintah non-fatal lainnya (curl, wget, node, npm, cat, git add/commit, ls, mkdir, dll) OTOMATIS AMAN
         return false;
     }
 
@@ -158,10 +167,12 @@ function isFatalOrCritical(toolName, toolArgs) {
         if (!targetFile) return false;
 
         const normalizedTarget = path.resolve(targetFile);
+        const botDir = path.resolve(__dirname, '..');
         const cwd = process.cwd();
+        const isInsideWorkspace = normalizedTarget.startsWith(botDir) || normalizedTarget.startsWith(cwd) || normalizedTarget.startsWith('/tmp/');
 
         // Target file di luar direktori bot (misal: /etc/, /usr/, /root/.ssh, dsb.)
-        if (!normalizedTarget.startsWith(cwd) && !normalizedTarget.startsWith('/tmp/')) {
+        if (!isInsideWorkspace) {
             return {
                 isFatal: true,
                 reason: \`Menulis/mengedit file di luar direktori bot: \${targetFile}\`
@@ -178,7 +189,7 @@ function isFatalOrCritical(toolName, toolArgs) {
         ];
 
         const baseName = path.basename(normalizedTarget);
-        const isCoreBotFile = criticalCoreFiles.includes(baseName) && path.dirname(normalizedTarget) === cwd;
+        const isCoreBotFile = criticalCoreFiles.includes(baseName) && (path.dirname(normalizedTarget) === botDir || path.dirname(normalizedTarget) === cwd);
 
         if (isCoreBotFile) {
             return {
@@ -693,8 +704,8 @@ async function sendFullTextResponse(bob, chatId, fullText, quotedMsg) {
 }
 
 module.exports = {
-    CmD: ['agy', 'antigravity', 'btw'],
-    aliases: ['agy', 'antigravity', 'btw'],
+    CmD: ['antigravity'],
+    aliases: ['antigravity', 'agy', 'btw'],
     categori: 'owner tools',
 
     /**
@@ -1054,12 +1065,13 @@ module.exports = {
             `- JANGAN HANYA MENAMPILKAN KODE DI CHAT jika diminta membuat fitur/plugin. Anda harus menuliskan file ke sistem.\n` +
             `- KEBIJAKAN PERSETUJUAN & AUTONOMI:\n` +
             `  * Eksekusi terminal non-fatal (curl, wget, node, npm test, git status/add/commit, cat, ls) dan penulisan/pengeditan plugin di './perintah/' SUDAH DISETUJUI OTOMATIS oleh sistem tanpa memerlukan konfirmasi manual.\n` +
-            `  * HANYA aksi fatal/destruktif (seperti rm -rf, git reset --hard, modifikasi file inti bot seperti main.js/control.js/config.js, atau manipulasi sistem) yang memicu konfirmasi izin manual.\n` +
+            `  * HANYA aksi fatal/destruktif (seperti rm -rf, git reset --hard, manipulasi PM2 seperti pm2 restart/stop, modifikasi file inti bot seperti main.js/control.js/config.js, atau manipulasi sistem) yang memicu konfirmasi izin manual.\n` +
             `  * Jika terdapat beberapa opsi pendekatan kode, arsitektur alternatif, atau butuh pertimbangan pengguna ("rekomendasi kode / pilihan kode"), sampaikan opsi-opsi tersebut dan berikan rekomendasi terbaik Anda secara jelas dan ringkas di pesan chat agar pengguna dapat memilihnya.\n` +
-            `- KEBIJAKAN RESTART PM2 & PENYELESAIAN KODE:\n` +
-            `  * DILARANG langsung me-restart PM2 di tengah-tengah penulisan kode atau tepat setelah membuat satu file.\n` +
-            `  * JIKA HANYA MENAMBAH ATAU MENGUBAH PLUGIN/PERINTAH DI './perintah/', TIDAK PERLU me-restart PM2 sama sekali karena bot menggunakan hot-reload otomatis dari lib/pluginManager.js.\n` +
-            `  * JIKA MELAKUKAN PERUBAHAN BESAR (misal: modul baru di lib/, penambahan scraper, atau modifikasi logic inti): Selesaikan DAHULU SELURUH penulisan semua file yang diperlukan, cek validasi syntax (node -c), konfirmasi selesai, baru kemudian lakukan restart PM2 jika memang diperlukan.\n` +
+            `- KEBIJAKAN PROSES PM2 & KONEKSI BOT:\n` +
+            `  * DILARANG KERAS me-restart PM2 (pm2 restart self-bot) atau menjalankan perintah stop/reload PM2 secara sepihak!\n` +
+            `  * Bot WhatsApp ini berjalan langsung di bawah proses PM2 'self-bot'. Me-restart PM2 akan seketika MEMATIKAN proses bot, MEMUTUSKAN koneksi WhatsApp, dan MENGGAGALKAN sesi Antigravity yang sedang berjalan.\n` +
+            `  * Seluruh file plugin di folder './perintah/' otomatis di-hot-reload oleh lib/pluginManager.js tanpa perlu restart PM2.\n` +
+            `  * JANGAN PERNAH menjalankan 'pm2 restart' kecuali pengguna secara eksplisit menginstruksikan 'restart bot' atau 'restart pm2'. Jika ada modul luar atau dependensi baru yang butuh reload proses, cukup sampaikan di chat agar pengguna melakukan restart manual jika perlu.\n` +
             `- GAYA BICARA & KARAKTER: Berikan penjelasan dan respon dengan bahasa santai gaul tongkrongan Indonesia (lu, gua, wir), sedikit tengil dan akrab tapi tetap handal dan presisi dalam hal kode. HINDARI bahasa kaku/formal seperti robot atau asisten korporat agar obrolan terasa natural dan tidak terlihat ke-ai-ai-an.\n\n` +
             `[INSTRUKSI PENGGUNA]:\n`;
 

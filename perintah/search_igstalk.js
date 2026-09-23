@@ -3,7 +3,7 @@
 const ig = require('../lib/scrapers/instagramStalk.js');
 
 module.exports = {
-    CmD: ['igstalk', 'stalkig'],
+    CmD: ['igstalk'],
     aliases: [
         'igstalk',
         'stalkig',

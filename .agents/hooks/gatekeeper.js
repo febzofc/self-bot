@@ -80,7 +80,16 @@ function isFatalOrCritical(toolName, toolArgs) {
             };
         }
 
-        // Perintah non-fatal lainnya (curl, wget, node, npm, cat, git add/commit, pm2 restart self-bot, ls, mkdir, dll) OTOMATIS AMAN
+        // g. Restart atau penghentian PM2 bot (mematikan proses bot & memutus koneksi WhatsApp)
+        if (/\bpm2\s+(restart|reload|stop|delete|kill|resurrect)\b/i.test(cmd) ||
+            /\b(systemctl|service)\s+.*(restart|stop)\b/i.test(cmd)) {
+            return {
+                isFatal: true,
+                reason: 'Perintah manipulasi PM2/layanan sistem (pm2 restart/stop). Aksi ini akan mematikan proses bot dan memutuskan koneksi WhatsApp!'
+            };
+        }
+
+        // Perintah non-fatal lainnya (curl, wget, node, npm, cat, git add/commit, ls, mkdir, dll) OTOMATIS AMAN
         return false;
     }
 
@@ -90,10 +99,12 @@ function isFatalOrCritical(toolName, toolArgs) {
         if (!targetFile) return false;
 
         const normalizedTarget = path.resolve(targetFile);
+        const botDir = path.resolve(__dirname, '..');
         const cwd = process.cwd();
+        const isInsideWorkspace = normalizedTarget.startsWith(botDir) || normalizedTarget.startsWith(cwd) || normalizedTarget.startsWith('/tmp/');
 
         // Target file di luar direktori bot (misal: /etc/, /usr/, /root/.ssh, dsb.)
-        if (!normalizedTarget.startsWith(cwd) && !normalizedTarget.startsWith('/tmp/')) {
+        if (!isInsideWorkspace) {
             return {
                 isFatal: true,
                 reason: `Menulis/mengedit file di luar direktori bot: ${targetFile}`
@@ -110,7 +121,7 @@ function isFatalOrCritical(toolName, toolArgs) {
         ];
 
         const baseName = path.basename(normalizedTarget);
-        const isCoreBotFile = criticalCoreFiles.includes(baseName) && path.dirname(normalizedTarget) === cwd;
+        const isCoreBotFile = criticalCoreFiles.includes(baseName) && (path.dirname(normalizedTarget) === botDir || path.dirname(normalizedTarget) === cwd);
 
         if (isCoreBotFile) {
             return {

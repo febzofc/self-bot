@@ -380,7 +380,7 @@ async function sendFlightDetail(m, session, index) {
 }
 
 module.exports = {
-    CmD: ['hargatiketpesawat', 'tiketpesawat'],
+    CmD: ['tiketpesawat'],
     aliases: [
         'hargatiketpesawat',
         'tiketpesawat',

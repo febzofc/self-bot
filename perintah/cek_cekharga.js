@@ -129,7 +129,7 @@ async function handleCekHarga(m, { bob, text, prefix = '.', command = 'cekharga'
 }
 
 module.exports = {
-    CmD: ['cekharga', 'cek-harga'],
+    CmD: ['cekharga'],
     aliases: [
         'cekharga',
         'cek-harga',
